@@ -143,7 +143,7 @@ def main():
     )
 
     resnet18 = ResNet([2,2,2,2], 10).to(device=DEVICE)
-    optimizer = optim.AdamW(resnet18.parameters(), lr=LEARNING_RATE)
+    optimizer = optim.SGD(resnet18.parameters(), lr=LEARNING_RATE)
     criterion = nn.CrossEntropyLoss()
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
     test_loder = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
