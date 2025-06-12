@@ -1,1 +1,6 @@
+# train data
 /data/*
+
+# images 
+*.png
+*.jpg

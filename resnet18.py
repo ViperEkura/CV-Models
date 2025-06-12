@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
@@ -146,11 +147,43 @@ def main():
     optimizer = optim.SGD(resnet18.parameters(), lr=LEARNING_RATE)
     criterion = nn.CrossEntropyLoss()
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    test_loder = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-    for epoch in range(EPOCHS):
-        train(resnet18, train_loader, optimizer, criterion, epoch, DEVICE)
-        test(resnet18, test_loder, criterion, DEVICE)
+    train_losses = []
+    train_accs = []
+    test_losses = []
+    test_accs = []
+
+    for epoch in range(1, EPOCHS + 1):
+        train_loss, train_acc = train(resnet18, train_loader, optimizer, criterion, epoch, DEVICE)
+        test_loss, test_acc = test(resnet18, test_loader, criterion, DEVICE)
+        
+        train_losses.append(train_loss)
+        train_accs.append(train_acc)
+        test_losses.append(test_loss)
+        test_accs.append(test_acc)
+
+
+    plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1)
+    plt.plot(train_losses, label='Train Loss')
+    plt.plot(test_losses, label='Test Loss')
+    plt.title('Loss Curve')
+    plt.xlabel('Epochs')
+    plt.ylabel('Loss')
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(train_accs, label='Train Accuracy')
+    plt.plot(test_accs, label='Test Accuracy')
+    plt.title('Accuracy Curve')
+    plt.xlabel('Epochs')
+    plt.ylabel('Accuracy (%)')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.savefig('loss_accuracy_curve.png')
+    plt.show()
 
 
 if __name__ == '__main__':
