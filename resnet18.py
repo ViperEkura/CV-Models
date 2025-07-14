@@ -7,75 +7,19 @@ from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
 from modules.resnet import ResNet
-
-
-transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.5,), (0.5,))
-])
-
-def train(model, train_loader, optimizer, criterion, epoch, device):
-    model.train() 
-    train_loss = 0
-    correct = 0
-    total = 0
-
-    for batch_idx, (data, target) in enumerate(train_loader):
-        data, target = data.to(device), target.to(device)
-
-        optimizer.zero_grad()
-        output = model(data)
-        loss = criterion(output, target)
-
-        loss.backward()
-        optimizer.step()
-
-        train_loss += loss.item()
-        _, predicted = output.max(1)
-        total += target.size(0)
-        correct += predicted.eq(target).sum().item()
-
-        if batch_idx % 100 == 0:
-            print(f'Train Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} '
-                  f'({100. * batch_idx / len(train_loader):.0f}%)]\tLoss: {loss.item():.6f}')
-
-    train_loss /= len(train_loader)
-    train_acc = 100. * correct / total
-
-    return train_loss, train_acc
-
-def test(model, test_loader, criterion, device):
-    model.eval() 
-    test_loss = 0
-    correct = 0
-    total = 0
-
-    with torch.no_grad():
-        for data, target in test_loader:
-            data, target = data.to(device), target.to(device)
-
-            output = model(data)
-            loss = criterion(output, target)
-
-            test_loss += loss.item()
-            _, predicted = output.max(1)
-            total += target.size(0)
-            correct += predicted.eq(target).sum().item()
-
-
-    test_loss /= len(test_loader)
-    test_acc = 100. * correct / total
-
-    print(f'\nTest set: Average loss: {test_loss:.4f}, Accuracy: {correct}/{total} ({test_acc:.2f}%)\n')
-
-    return test_loss, test_acc
+from modules.utils.classification import train_loop
 
 
 def main():
     BATCH_SIZE = 64
-    EPOCHS = 10
+    EPOCHS = 5
     LEARNING_RATE = 0.001
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,), (0.5,))
+    ])
 
     train_dataset = datasets.FashionMNIST(
         root='./data',
@@ -83,6 +27,7 @@ def main():
         download=True,
         transform=transform
     )
+    
     test_dataset = datasets.FashionMNIST(
         root='./data',
         train=False,
@@ -95,21 +40,10 @@ def main():
     criterion = nn.CrossEntropyLoss()
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
-
-    train_losses = []
-    train_accs = []
-    test_losses = []
-    test_accs = []
-
-    for epoch in range(1, EPOCHS + 1):
-        train_loss, train_acc = train(resnet18, train_loader, optimizer, criterion, epoch, DEVICE)
-        test_loss, test_acc = test(resnet18, test_loader, criterion, DEVICE)
-        
-        train_losses.append(train_loss)
-        train_accs.append(train_acc)
-        test_losses.append(test_loss)
-        test_accs.append(test_acc)
-
+    
+    train_losses, test_losses, train_accs, test_accs = train_loop(
+        resnet18, train_loader, test_loader, optimizer, criterion, EPOCHS, DEVICE, 100
+    )
 
     plt.figure(figsize=(12, 5))
     plt.subplot(1, 2, 1)
