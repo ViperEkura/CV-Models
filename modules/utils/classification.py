@@ -1,4 +1,4 @@
-import torch.nn as nn
+import torch
 
 from torch import Tensor
 from typing import List, Callable
@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 
 
 def train_fn(
-    model: nn.Module,
+    model: Callable[[Tensor],  Tensor],
     train_loader: DataLoader, 
     optimizer: Optimizer, 
     criterion: Callable[[Tensor, Tensor],  Tensor], 
@@ -22,22 +22,35 @@ def train_fn(
         loss = criterion(output, target)
         loss.backward()
         optimizer.step()
-        
         loss_list.append(loss.item())
         
         if batch_idx % print_every == 0:
-            epoch_info = f'Epoch: {epoch} [{batch_idx * len(data)}/{len(train_loader.dataset)} ' \
-                            f'({100. * batch_idx / len(train_loader):.0f}%)]\tLoss: {loss.item():.5f}'
-            print(epoch_info)
-
+            epoch_info = f"{epoch} [{batch_idx}/{len(train_loader)}]"
+            iteration_info = f'\nEpoch: {epoch_info} | Loss: {loss.item():.5f}'
+            print(iteration_info)
+    
     return loss_list
 
-
-def val_fn(
-    model: nn.Module,
-    val_loader: DataLoader,
+def test_fn(
+    model: Callable[[Tensor],  Tensor],
+    test_loader: DataLoader,
+    criterion: Callable[[Tensor, Tensor],  Tensor],
     epoch: int,
-    criterion: nn.Module,
-    print_every=10,
 ):
-    pass
+    with torch.no_grad():
+        for data, target in test_loader:
+            output = model(data)
+            loss = criterion(output, target)
+            test_loss += loss.item()
+            _, predicted = output.max(1)
+            
+            total += target.size(0)
+            correct += predicted.eq(target).sum().item()
+    
+    test_loss /= len(test_loader)
+    test_acc = 100. * correct / total
+    acc_info = f'{correct}/{total} ({test_acc:.2f}%)'
+    iteration_info = f'\nEpoch: {epoch} | Average loss: {test_loss:.4f} | Accuracy: {acc_info}'
+    print(iteration_info)
+    
+    return test_loss, test_acc
