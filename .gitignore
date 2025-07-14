@@ -4,3 +4,8 @@
 # images 
 *.png
 *.jpg
+
+
+# cache
+*__pycache__
+*.pyc
