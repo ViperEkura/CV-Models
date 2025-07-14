@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
@@ -42,7 +41,7 @@ def main():
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
     
     train_losses, test_losses, train_accs, test_accs = train_loop(
-        resnet18, train_loader, test_loader, optimizer, criterion, EPOCHS, DEVICE, 100
+        resnet18, train_loader, test_loader, optimizer, criterion, EPOCHS, 100, DEVICE
     )
 
     plt.figure(figsize=(12, 5))
