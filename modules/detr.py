@@ -1,9 +1,9 @@
 import torch
-from torch import nn
+import torch.nn as nn
+from torch import Tensor
 from torchvision.models import resnet50
 
 class DETR(nn.Module):
-
     def __init__(self, num_classes, hidden_dim, nheads,
                  num_encoder_layers, num_decoder_layers):
         super().__init__()
@@ -18,7 +18,7 @@ class DETR(nn.Module):
         self.row_embed = nn.Parameter(torch.rand(50, hidden_dim // 2))
         self.col_embed = nn.Parameter(torch.rand(50, hidden_dim // 2))
 
-    def forward(self, inputs):
+    def forward(self, inputs: Tensor):
         x = self.backbone(inputs)
         h = self.conv(x)
         H, W = h.shape[-2:]

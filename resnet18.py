@@ -14,7 +14,6 @@ transform = transforms.Compose([
     transforms.Normalize((0.5,), (0.5,))
 ])
 
-
 def train(model, train_loader, optimizer, criterion, epoch, device):
     model.train() 
     train_loss = 0
