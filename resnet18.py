@@ -91,7 +91,7 @@ def main():
         transform=transform
     )
 
-    resnet18 = ResNet([1,2,1,1], 10).to(device=DEVICE)
+    resnet18 = ResNet("resnet18", 1, 10).to(device=DEVICE)
     optimizer = optim.SGD(resnet18.parameters(), lr=LEARNING_RATE)
     criterion = nn.CrossEntropyLoss()
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)

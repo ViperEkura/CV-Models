@@ -1,2 +1,1 @@
-# 设置所有文本文件使用 LF 换行
-* text=auto eol=lf
+* text=auto eol=crlf
