@@ -12,7 +12,7 @@ from modules.utils.classification import train_loop
 def main():
     BATCH_SIZE = 64
     EPOCHS = 5
-    LEARNING_RATE = 0.001
+    LEARNING_RATE = 0.003
     DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     transform = transforms.Compose([
