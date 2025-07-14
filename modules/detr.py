@@ -1,62 +1,31 @@
 import torch
-import torch.nn as nn
-
-class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, max_len=5000):
-        super(PositionalEncoding, self).__init__()
-        pe = torch.zeros(max_len, d_model)
-        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-torch.log(torch.tensor(10000.0)) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        self.register_buffer('pe', pe.unsqueeze(0))
-
-    def forward(self, x):
-        return x + self.pe[:, :x.size(1)]
-
-class TransformerEncoder(nn.Module):
-    def __init__(self, d_model=512, nhead=8, num_layers=6):
-        super(TransformerEncoder, self).__init__()
-        self.encoder_layer = nn.TransformerEncoderLayer(d_model, nhead)
-        self.transformer_encoder = nn.TransformerEncoder(self.encoder_layer, num_layers)
-        
-    def forward(self, src):
-        return self.transformer_encoder(src)
+from torch import nn
+from torchvision.models import resnet50
 
 class DETR(nn.Module):
-    def __init__(self, num_classes=91, hidden_dim=256, nheads=8, num_encoder_layers=6):
-        super(DETR, self).__init__()
-        # Feature extractor (simplified)
-        self.backbone = nn.Sequential(
-            nn.Conv2d(3, hidden_dim, kernel_size=8),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool2d((None, hidden_dim))
-        )
-        
-        # Transformer components
-        self.pos_encoder = PositionalEncoding(hidden_dim)
-        self.transformer = TransformerEncoder(hidden_dim, nheads, num_encoder_layers)
-        
-        # Prediction heads
-        self.class_embed = nn.Linear(hidden_dim, num_classes)
-        self.bbox_embed = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 4)
-        )
-        
-    def forward(self, x):
-        # Feature extraction
-        x = self.backbone(x).flatten(2).permute(2, 0, 1)
-        
-        # Add positional encoding
-        x = self.pos_encoder(x)
-        
-        # Transformer processing
-        memory = self.transformer(x)
-        
-        # Output predictions
-        outputs_class = self.class_embed(memory)
-        outputs_coord = self.bbox_embed(memory).sigmoid()
-        
-        return outputs_class, outputs_coord
+
+    def __init__(self, num_classes, hidden_dim, nheads,
+                 num_encoder_layers, num_decoder_layers):
+        super().__init__()
+        # We take only convolutional layers from ResNet-50 model
+        self.backbone = nn.Sequential(*list(resnet50(pretrained=True).children())[:-2])
+        self.conv = nn.Conv2d(2048, hidden_dim, 1)
+        self.transformer = nn.Transformer(hidden_dim, nheads,
+                                          num_encoder_layers, num_decoder_layers)
+        self.linear_class = nn.Linear(hidden_dim, num_classes + 1)
+        self.linear_bbox = nn.Linear(hidden_dim, 4)
+        self.query_pos = nn.Parameter(torch.rand(100, hidden_dim))
+        self.row_embed = nn.Parameter(torch.rand(50, hidden_dim // 2))
+        self.col_embed = nn.Parameter(torch.rand(50, hidden_dim // 2))
+
+    def forward(self, inputs):
+        x = self.backbone(inputs)
+        h = self.conv(x)
+        H, W = h.shape[-2:]
+        pos = torch.cat([
+            self.col_embed[:W].unsqueeze(0).repeat(H, 1, 1),
+            self.row_embed[:H].unsqueeze(1).repeat(1, W, 1),
+        ], dim=-1).flatten(0, 1).unsqueeze(1)
+        h = self.transformer(pos + h.flatten(2).permute(2, 0, 1),
+                             self.query_pos.unsqueeze(1))
+        return self.linear_class(h), self.linear_bbox(h).sigmoid()
