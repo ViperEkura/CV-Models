@@ -66,17 +66,18 @@ class ResNet(nn.Module):
         'resnet152': (Bottleneck, [3, 8, 36, 3], [64, 128, 256, 512], 4),
     }
 
-    def __init__(self, version, in_channel, out_dim):
+    def __init__(self, version, in_channel, out_dim=None):
         super(ResNet, self).__init__()
-        if version not in self.configs:
-            raise ValueError(f"Unsupported ResNet version: {version}")
+        assert version in self.configs
         block_type, block_list, channel_list, expansion = self.configs[version]
         self.expansion = expansion
+        self.out_dim = out_dim
         self.in_planes = 64
 
-        self.conv = nn.Conv2d(in_channel, 64, kernel_size=3, stride=1, padding=1, bias=False)
-        self.bn = nn.BatchNorm2d(64)
-        
+        self.conv = nn.Conv2d(in_channel, self.in_planes, 
+                              kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn = nn.BatchNorm2d(self.in_planes)
+    
         layer_list = []
         for i in range(len(channel_list)):
             stride = 1 if i == 0 else 2
@@ -84,7 +85,8 @@ class ResNet(nn.Module):
             layer_list.append(layer)
         
         self.layers = nn.Sequential(*layer_list)
-        self.linear = nn.Linear(self.in_planes, out_dim)
+        if self.out_dim is not None:
+            self.linear = nn.Linear(self.in_planes, out_dim)
 
     def _make_layer(self, block_type, planes, num_blocks, stride):
         strides = [stride] + [1] * (num_blocks - 1)
@@ -99,7 +101,10 @@ class ResNet(nn.Module):
         out = F.relu(self.bn(self.conv(x)))
         for layer in self.layers:
             out = layer(out)
-        out = F.avg_pool2d(out, 4)
-        out = out.view(out.size(0), -1)
-        out = self.linear(out)
+            
+        if self.out_dim is not None:
+            out = F.avg_pool2d(out, 4)
+            out = out.view(out.size(0), -1)
+            out = self.linear(out)
+            
         return out
