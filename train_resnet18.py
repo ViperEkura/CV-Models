@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
-from modules.resnet import ResNet
+from modules.model.resnet import ResNet
 from modules.utils.classification import train_loop
 
 
