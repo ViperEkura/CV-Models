@@ -58,13 +58,13 @@ class DETR(nn.Module):
         return pred_class, pred_bbox
 
 
-def box_cxcywh_to_xyxy(x):
+def box_cxcywh_to_xyxy(x: Tensor):
     x_c, y_c, w, h = x.unbind(-1)
     b = [(x_c - 0.5 * w), (y_c - 0.5 * h),
          (x_c + 0.5 * w), (y_c + 0.5 * h)]
     return torch.stack(b, dim=-1)
 
-def generalized_box_iou(boxes1, boxes2):
+def generalized_box_iou(boxes1: Tensor, boxes2: Tensor):
     # Compute intersection
     inter = torch.min(boxes1[:, None, 2:], boxes2[:, 2:]) - torch.max(boxes1[:, None, :2], boxes2[:, :2])
     inter = inter.clamp(min=0)
@@ -95,7 +95,7 @@ class HungarianMatcher(nn.Module):
         self.giou_weight = giou_weight
         
     @torch.no_grad()
-    def forward(self, pred_logits, pred_boxes, targets):
+    def forward(self, pred_logits: Tensor, pred_boxes: Tensor, targets: Tensor):
         """
         pred_logits: [batch_size, num_queries, num_classes]
         pred_boxes: [batch_size, num_queries, 4]
