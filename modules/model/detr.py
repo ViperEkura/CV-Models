@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch import Tensor
 from torch.nn.functional import cross_entropy, l1_loss
 from .resnet import ResNet
+from scipy.optimize import linear_sum_assignment
 
 
 class DETR(nn.Module):
@@ -130,7 +131,7 @@ class HungarianMatcher(nn.Module):
             C = C.reshape(num_queries, num_targets).cpu()
             
             # Hungarian algorithm
-            # indices.append(linear_sum_assignment(C))
+            indices.append(linear_sum_assignment(C))
             
         return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) 
                 for i, j in indices]
