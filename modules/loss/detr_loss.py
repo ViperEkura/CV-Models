@@ -1,9 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import List, Dict, Tuple
+from typing import Dict, Tuple
 from torch import Tensor
 from modules.model.detr import HungarianMatcher, _box_giou
+
 
 class SetCriterion(nn.Module):
     def __init__(
@@ -27,7 +28,7 @@ class SetCriterion(nn.Module):
         pred_bbox: Tensor,
         gt_class: Tensor,
         gt_bbox: Tensor
-    ) -> Dict[str, Tensor]:
+    ) -> Tuple[Tensor, Dict[str, Tensor]]:
         indices = self.matcher(pred_class, pred_bbox, gt_class, gt_bbox)
         
         idx = self._get_src_permutation_idx(indices)
