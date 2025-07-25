@@ -5,14 +5,14 @@ import numpy as np
 from typing import List, Tuple
 from torch import Tensor
 from modules.model.resnet import ResNet
-from lap import lapjv
+import lap
 
 def jonker_volgenant(cost_matrix: np.ndarray) -> Tuple[int, List[int], List[int]]:
     """
     Jonker-Volgenant算法
     """
     assert cost_matrix.ndim == 2
-    return lapjv(cost_matrix)
+    return lap.lapjv(cost_matrix)
 
 def _xywh_to_xyxy(boxes: Tensor) -> Tensor:
     """
