@@ -1,18 +1,19 @@
 import torch
 
-from torch import Tensor
+from torch import Tensor, device
+from torch.nn import Module
 from typing import List, Callable, Tuple
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 
 
 def train_fn(
-    model: Callable[[Tensor],  Tensor],
+    model: Module | Callable[[Tensor], Tensor],
     train_loader: DataLoader, 
     optimizer: Optimizer, 
     criterion: Callable[[Tensor, Tensor],  Tensor], 
     epoch: int,
-    device: torch.device,
+    device: device,
     print_every: int
 ) -> Tuple[float, float]:
     loss_list = []
@@ -44,10 +45,10 @@ def train_fn(
 
 
 def test_fn(
-    model: Callable[[Tensor],  Tensor],
+    model: Module | Callable[[Tensor], Tensor],
     test_loader: DataLoader,
     criterion: Callable[[Tensor, Tensor],  Tensor],
-    device: torch.device,
+    device: device,
 ) -> Tuple[float, float]:
     model.eval()
     test_loss = 0.0
@@ -74,14 +75,14 @@ def test_fn(
 
 
 def train_loop(
-    model: Callable[[Tensor],  Tensor],
+    model: Module | Callable[[Tensor],  Tensor],
     train_loader: DataLoader,
     test_loader: DataLoader,
     optimizer: Optimizer,
     criterion: Callable[[Tensor, Tensor],  Tensor],
     epochs: int,
     print_every: int,
-    device: torch.device,
+    device: device,
 )-> Tuple[List[float], List[float], List[float], List[float]]:
     
     train_losses, test_losses, train_accs, test_accs = [], [], [], []
