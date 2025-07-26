@@ -13,10 +13,9 @@ class DETRDataset(Dataset):
         image_dir: str,
         anno_dir: str,
         anno_file: str,
-        image_size: Tuple[int, int] = (800, 800),
+        image_size: Tuple[int, int] = (224, 224),
         mode: str = 'train'
     ):
-
         self.image_dir = image_dir
         self.anno_dir = anno_dir
         self.anno_file = anno_file
@@ -38,11 +37,11 @@ class DETRDataset(Dataset):
             self.image_subdir = 'val2017'
         else:
             raise ValueError("Unsupported annotation file name.")
-        
-        self.image_dir = os.path.join(self.image_dir, self.image_subdir)
+
 
     def __len__(self) -> int:
         return len(self.image_ids)
+
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         image_id = self.image_ids[idx]
@@ -50,8 +49,9 @@ class DETRDataset(Dataset):
         image_path = os.path.join(self.image_dir, f"{image_id:012d}.jpg")
         image = Image.open(image_path).convert('RGB')
         image = image.resize(self.image_size)
-        annos = [anno for anno in self.annotations['annotations'] if anno['image_id'] == image_id]
         
+        annos = [anno for anno in 
+                 self.annotations['annotations'] if anno['image_id'] == image_id]
         boxes = []
         labels = []
         
@@ -71,7 +71,4 @@ class DETRDataset(Dataset):
         
         image = self.transform(image)
         
-        return image, {
-            'labels': labels,
-            'boxes': boxes
-        }
+        return image, labels, boxes
