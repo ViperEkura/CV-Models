@@ -7,6 +7,25 @@ from torchvision import transforms
 from torch.utils.data import Dataset
 
 
+def collate_fn_pad(batch):
+    images = [item[0] for item in batch]
+    labels = [item[1] for item in batch]
+    boxes  = [item[2] for item in batch]
+
+    images = torch.stack(images, dim=0)
+
+    max_boxes = max(len(box) for box in boxes)
+
+    padded_boxes = torch.zeros((len(batch), max_boxes, 4), dtype=torch.float32)
+    padded_labels = torch.full((len(batch), max_boxes), -1, dtype=torch.long)
+
+    for i, (box, lab) in enumerate(zip(boxes, labels)):
+        padded_boxes[i, :len(box)] = box
+        padded_labels[i, :len(lab)] = lab
+
+    return images, padded_labels, padded_boxes
+
+
 class DETRDataset(Dataset):
     def __init__(
         self,
