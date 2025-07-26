@@ -1,7 +1,8 @@
 import os
-import sys
+import zipfile
 import requests
 from tqdm import tqdm
+
 
 def download_coco(save_dir: str):
     # coco urls
@@ -13,13 +14,12 @@ def download_coco(save_dir: str):
     
     os.makedirs(save_dir, exist_ok=True)
     
-    # download
+    # Download ZIP files
     for name, url in coco_urls.items():
         save_path = os.path.join(save_dir, os.path.basename(url))
-
         if os.path.exists(save_path):
             continue
-            
+        
         print(f"downloading {name} to {save_path}")
         response = requests.get(url, stream=True)
         total_size = int(response.headers.get('content-length', 0))
@@ -35,4 +35,20 @@ def download_coco(save_dir: str):
                 size = f.write(data)
                 progress_bar.update(size)
     
-    print("finished downloading !")
+    # Extract ZIP files
+    for name, url in coco_urls.items():
+        save_path = os.path.join(save_dir, os.path.basename(url))
+        extract_dir = os.path.join(save_dir, os.path.splitext(os.path.basename(url))[0])
+        
+        if not os.path.exists(save_path):
+            print(f"Zip file {save_path} does not exist. Skipping extraction.")
+            continue
+        
+        if os.path.exists(extract_dir):
+            continue
+        
+        print(f"Extracting {name} to {extract_dir}")
+        with zipfile.ZipFile(save_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_dir)
+    
+    print("finished downloading and extracting !")
