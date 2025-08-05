@@ -1,27 +1,23 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Dict, Tuple
 from torch import Tensor
+from torch.nn.modules import Module
 from modules.model.detr import HungarianMatcher, _box_giou
 
 
-class SetCriterion(nn.Module):
+class SetCriterion(Module):
     def __init__(
-        self, 
+        self,
         num_classes: int,
         matcher: HungarianMatcher,
-        weight_dict: Dict[str, float] = None,
         eos_coef: float = 0.1
     ):
         super().__init__()
         
-        if weight_dict is None:
-            weight_dict = {'loss_class': 2.0, 'loss_bbox': 1.0, 'loss_giou': 1.0}
-            
         self.num_classes = num_classes
         self.matcher = matcher
-        self.weight_dict = weight_dict
+        self.weight_dict = matcher.get_cost_weight_dict()
         self.eos_coef = eos_coef
         self.empty_weight = torch.ones(num_classes + 1)
         self.empty_weight[0] = eos_coef
@@ -33,33 +29,36 @@ class SetCriterion(nn.Module):
         gt_class: Tensor,
         gt_bbox: Tensor
     ) -> Tensor:
-        indices = self.matcher(pred_class, pred_bbox, gt_class, gt_bbox)
+        # [batch_size, num_queries], [batch_size, num_gt_boxes]
+        row_ind, col_ind = self.matcher.match(pred_class, pred_bbox, gt_class, gt_bbox)
+        background_mask = row_ind.eq(-1)
+        target_class = row_ind.detach().clone()
+        target_class[background_mask] = self.num_classes
         
-        idx = self._get_src_permutation_idx(indices)
-        target_class_o = torch.cat([t[J] for t, (_, J) in zip(gt_class, indices)])
-        target_class = torch.full(pred_class.shape[:2], 0, dtype=torch.int64, device=pred_class.device)
-        target_class[idx] = target_class_o
-        loss_class = F.cross_entropy(pred_class.transpose(1, 2), target_class, weight=self.empty_weight)
-
-        src_boxes = pred_bbox[idx]
-        target_boxes = torch.cat([t[i] for t, (i, _) in zip(gt_bbox, indices)], dim=0)
-        loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none').sum() / pred_bbox.shape[0]
+        self.empty_weight = self.empty_weight.to(device=pred_class.device)
+        target_class = target_class.to(device=pred_class.device)
         
-        loss_giou = torch.diag(1 - _box_giou(src_boxes, target_boxes)).sum() / pred_bbox.shape[0]
-
-        losses = {
-            'loss_class': loss_class,
-            'loss_bbox': loss_bbox,
-            'loss_giou': loss_giou
-        }
-        total_loss = sum(self.weight_dict[k] * losses[k] for k in losses.keys())
+        loss_class = F.cross_entropy(
+            input=pred_class.transpose(1, 2), 
+            target=target_class,
+            weight=self.empty_weight
+        )
+        
+        pred_bbox_selected = pred_bbox[~background_mask, :]
+        gt_bbox_selected = gt_bbox.view(-1, 4)
+        valid_mask = background_mask.logical_not().to(device=gt_bbox.device)
+        
+        loss_bbox = F.l1_loss(pred_bbox_selected.flatten(), gt_bbox_selected.flatten(), reduction='none').sum()  
+        loss_giou = 1 - _box_giou(pred_bbox_selected, gt_bbox_selected)
+        
+        loss_class = (loss_class * valid_mask).sum() / valid_mask.sum().clamp(min=1)
+        loss_bbox = (loss_bbox * valid_mask).sum() / valid_mask.sum().clamp(min=1)
+        loss_giou = loss_giou.sum() / valid_mask.sum().clamp(min=1)
+        
+        total_loss = (
+            self.weight_dict["class"] * loss_class +
+            self.weight_dict["bbox"] * loss_bbox +
+            self.weight_dict["giou"] * loss_giou
+        )
         
         return total_loss
-    
-    def _get_src_permutation_idx(self, indices):
-        """
-        将匹配索引转换为permuted预测张量索引
-        """
-        batch_idx = torch.cat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
-        src_idx = torch.cat([src for (src, _) in indices])
-        return batch_idx, src_idx

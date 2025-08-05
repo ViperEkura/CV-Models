@@ -23,10 +23,6 @@ if __name__ == "__main__":
     model = DETR(num_classes=100).to(device)
     optimizer = optim.AdamW(model.parameters(), lr=1e-4)
     matcher = HungarianMatcher(2, 1, 1)
-    criterion = SetCriterion(
-        num_classes=100, 
-        matcher=matcher, 
-        weight_dict={'loss_class': 2.0, 'loss_bbox': 1.0, 'loss_giou': 1.0}
-    )
+    criterion = SetCriterion(num_classes=100, matcher=matcher)
     
     train_loop(model, train_loader, test_loader, optimizer, criterion, 1, 1, device)
