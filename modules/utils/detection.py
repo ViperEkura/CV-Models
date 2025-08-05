@@ -24,8 +24,8 @@ def train_fn(
         label = label.to(device)
         box = box.to(device)
         
-        output = model(img)
-        loss = criterion(output, label, box)
+        pred_class, pred_bbox = model(img)
+        loss = criterion(pred_class, pred_bbox, label, box)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -54,8 +54,8 @@ def test_fn(
         label = label.to(device)
         box = box.to(device)
         
-        output = model(img)
-        loss = criterion(output, label, box)
+        pred_class, pred_bbox = model(img)
+        loss = criterion(pred_class, pred_bbox, label, box)
         loss_list.append(loss.item())
     
     avg_loss = sum(loss_list) / len(loss_list)

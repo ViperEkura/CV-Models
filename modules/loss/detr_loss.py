@@ -11,10 +11,14 @@ class SetCriterion(nn.Module):
         self, 
         num_classes: int,
         matcher: HungarianMatcher,
-        weight_dict: Dict[str, float],
+        weight_dict: Dict[str, float] = None,
         eos_coef: float = 0.1
     ):
         super().__init__()
+        
+        if weight_dict is None:
+            weight_dict = {'loss_class': 2.0, 'loss_bbox': 1.0, 'loss_giou': 1.0}
+            
         self.num_classes = num_classes
         self.matcher = matcher
         self.weight_dict = weight_dict
@@ -28,7 +32,7 @@ class SetCriterion(nn.Module):
         pred_bbox: Tensor,
         gt_class: Tensor,
         gt_bbox: Tensor
-    ) -> Tuple[Tensor, Dict[str, Tensor]]:
+    ) -> Tensor:
         indices = self.matcher(pred_class, pred_bbox, gt_class, gt_bbox)
         
         idx = self._get_src_permutation_idx(indices)
@@ -50,7 +54,7 @@ class SetCriterion(nn.Module):
         }
         total_loss = sum(self.weight_dict[k] * losses[k] for k in losses.keys())
         
-        return total_loss, losses
+        return total_loss
     
     def _get_src_permutation_idx(self, indices):
         """
