@@ -9,24 +9,37 @@ import lap
 
 def jonker_volgenant(cost_matrix: np.ndarray) -> Tuple[int, List[int], List[int]]:
     """
-    Jonker-Volgenant算法
+    Args:
+        cost_matrix (np.ndarray): shape [num_queries, num_gt_boxes]
+    Returns:
+        Tuple[int, np.ndarray, np.ndarray]:
+            total_cost (int): cost of the assignment
+            row_indices (np.ndarray): row indices of the optimal assignment
+            col_indices (np.ndarray): column indices of the optimal assignment
     """
     assert cost_matrix.ndim == 2
     return lap.lapjv(cost_matrix, extend_cost=True)
 
 def _xywh_to_xyxy(boxes: Tensor) -> Tensor:
     """
-    将边界框的坐标从(x, y, w, h)转换为(x1, y1, x2, y2)
+    Args:
+        boxes (Tensor): shape [num_queries, 4]
+    Returns:
+        boxes (Tensor): shape [num_queries, 4]
     """
     x, y, w, h = boxes.unbind(-1)
     return torch.stack([x - w/2, y - h/2, x + w/2, y + h/2], dim=-1)
 
 def _box_intersection(boxes1: Tensor, boxes2: Tensor) -> Tensor:
     """
-    计算两组边界框的交集区域面积
+    Args:
+        boxes1 (Tensor): shape [..., num_queries, 4]
+        boxes2 (Tensor): shape [..., num_gt_boxes, 4]
+    Returns:
+        Tensor: shape [..., num_queries, num_gt_boxes]
     """
-    boxes1 = boxes1.unsqueeze(1)  # [num_queries, 1, 4]
-    boxes2 = boxes2.unsqueeze(0)  # [1, num_gt_boxes, 4]
+    boxes1 = boxes1.unsqueeze(-2)  # [..., num_queries, 1, 4]
+    boxes2 = boxes2.unsqueeze(-3)  # [..., 1, num_gt_boxes, 4]
 
     x1 = torch.max(boxes1[..., 0], boxes2[..., 0])
     y1 = torch.max(boxes1[..., 1], boxes2[..., 1])
@@ -35,29 +48,36 @@ def _box_intersection(boxes1: Tensor, boxes2: Tensor) -> Tensor:
 
     w = torch.clamp(x2 - x1, min=0)
     h = torch.clamp(y2 - y1, min=0)
-    # [num_queries, num_gt_boxes]
+    
     return w * h
 
 def _box_union(boxes1: Tensor, boxes2: Tensor) -> Tensor:
     """
-    计算两组边界框的并集区域面积
+    Args:
+        boxes1 (Tensor): shape [..., num_queries, 4]
+        boxes2 (Tensor): shape [..., num_gt_boxes, 4]
+    Returns:
+        Tensor: shape [..., num_queries, num_gt_boxes]
     """
-    boxes1 = boxes1.unsqueeze(1)  # [num_queries, 1, 4]
-    boxes2 = boxes2.unsqueeze(0)  # [1, num_gt_boxes, 4]
+    boxes1 = boxes1.unsqueeze(-2)  # [..., num_queries, 1, 4]
+    boxes2 = boxes2.unsqueeze(-3)  # [..., 1, num_gt_boxes, 4]
 
     area1 = (boxes1[..., 2] - boxes1[..., 0]) * (boxes1[..., 3] - boxes1[..., 1])
     area2 = (boxes2[..., 2] - boxes2[..., 0]) * (boxes2[..., 3] - boxes2[..., 1])
     inter = _box_intersection(boxes1.squeeze(1), boxes2.squeeze(0))
 
-    # [num_queries, num_gt_boxes]
     return area1 + area2 - inter
 
 def _box_enclose_area(boxes1: Tensor, boxes2: Tensor) -> Tensor:
     """
-    计算包含两组边界框的最小闭包区域面积
+    Args:
+        boxes1 (Tensor): shape [..., num_queries, 4]
+        boxes2 (Tensor): shape [..., num_gt_boxes, 4]
+    Returns:
+        Tensor: shape [..., num_queries, num_gt_boxes]
     """
-    boxes1 = boxes1.unsqueeze(1)  # [num_queries, 1, 4]
-    boxes2 = boxes2.unsqueeze(0)  # [1, num_gt_boxes, 4]
+    boxes1 = boxes1.unsqueeze(-2)  # [..., num_queries, 1, 4]
+    boxes2 = boxes2.unsqueeze(-3)  # [..., 1, num_gt_boxes, 4]
 
     x1 = torch.min(boxes1[..., 0], boxes2[..., 0])
     y1 = torch.min(boxes1[..., 1], boxes2[..., 1])
@@ -66,12 +86,16 @@ def _box_enclose_area(boxes1: Tensor, boxes2: Tensor) -> Tensor:
 
     w = x2 - x1
     h = y2 - y1
-    # [num_queries, num_gt_boxes]
+
     return w * h
 
 def _box_giou(boxes1: Tensor, boxes2: Tensor) -> Tensor:
     """
-    计算两个box之间的GIOU
+    Args:
+        boxes1 (Tensor): shape [..., num_queries, 4]
+        boxes2 (Tensor): shape [..., num_gt_boxes, 4]
+    Returns:
+        Tensor: shape [..., num_queries, num_gt_boxes]
     """
     boxes1 = _xywh_to_xyxy(boxes1)
     boxes2 = _xywh_to_xyxy(boxes2)
@@ -156,6 +180,18 @@ class HungarianMatcher:
         gt_class: Tensor, 
         gt_bbox: Tensor
     ) -> Tuple[Tensor, Tensor]:
+        """
+        Args:
+            pred_class (Tensor): shape [batch_size, num_queries, num_classes + 1]
+            pred_bbox (Tensor): shape [batch_size, num_queries, 4]
+            gt_class (Tensor): shape [batch_size, num_gt_boxes]
+            gt_bbox (Tensor): shape [batch_size, num_gt_boxes, 4]
+        Returns:
+            Tuple[Tensor, Tensor]: 
+                row_inds (Tensor): shape [batch_size, num_queries],  
+                col_inds (Tensor): shape [batch_size, num_gt_boxes]
+        """
+        
         batch_size = pred_class.size(0)
         row_inds, col_inds = [], []
         
