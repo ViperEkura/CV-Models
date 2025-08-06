@@ -33,7 +33,7 @@ def train_fn(
         
         if batch_idx % print_every == 0:
             epoch_info = f"{epoch} [{batch_idx}/{len(train_loader)}]"
-            iteration_info = f'\nEpoch: {epoch_info} | Loss: {loss.item():.5f}'
+            iteration_info = f'Epoch: {epoch_info} | Loss: {loss.item():.5f}'
             print(iteration_info)
     
     avg_loss = sum(loss_list) / len(loss_list)
