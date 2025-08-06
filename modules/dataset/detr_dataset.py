@@ -81,8 +81,12 @@ class DETRDataset(Dataset):
             boxes.append([x_min, y_min, x_max, y_max])
             labels.append(anno['category_id'])
         
-        boxes = torch.tensor(boxes, dtype=torch.float32)
-        labels = torch.tensor(labels, dtype=torch.int64)
+        if not annos:
+            boxes = torch.zeros((1, 4), dtype=torch.float32)
+            labels = torch.zeros((1,), dtype=torch.int64)
+        else:
+            boxes = torch.tensor(boxes, dtype=torch.float32)
+            labels = torch.tensor(labels, dtype=torch.int64)
         
         h, w = self.image_size
         boxes[:, [0, 2]] /= w
