@@ -17,7 +17,7 @@ def collate_fn_pad(batch):
     max_boxes = max(len(box) for box in boxes)
 
     padded_boxes = torch.zeros((len(batch), max_boxes, 4), dtype=torch.float32)
-    padded_labels = torch.full((len(batch), max_boxes), -1, dtype=torch.long)
+    padded_labels = torch.full((len(batch), max_boxes), 0, dtype=torch.long)
 
     for i, (box, lab) in enumerate(zip(boxes, labels)):
         padded_boxes[i, :len(box)] = box

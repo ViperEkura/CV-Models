@@ -193,6 +193,7 @@ class HungarianMatcher:
         """
         
         batch_size = pred_class.size(0)
+        device = pred_class.device
         row_inds, col_inds = [], []
         
         for i in range(batch_size):
@@ -209,8 +210,8 @@ class HungarianMatcher:
             row_inds.append(torch.from_numpy(row_ind).long())
             col_inds.append(torch.from_numpy(col_ind).long())
         
-        row_inds_cat = torch.stack(row_inds) # [batch_size, num_queries]
-        col_inds_cat = torch.stack(col_inds) # [batch_size, num_gt_boxes]
+        row_inds_cat = torch.stack(row_inds).to(device=device) # [batch_size, num_queries]
+        col_inds_cat = torch.stack(col_inds).to(device=device) # [batch_size, num_gt_boxes]
         
         return row_inds_cat, col_inds_cat
     
