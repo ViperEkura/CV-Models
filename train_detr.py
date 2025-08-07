@@ -1,4 +1,4 @@
-from modules.dataset.download_coco import download_coco
+from modules.dataset import download_coco
 from modules.dataset.detr_dataset import DETRDataset, collate_fn_pad
 from modules.model import DETR, HungarianMatcher
 from modules.loss.detr_loss import SetCriterion
