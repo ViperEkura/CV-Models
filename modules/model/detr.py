@@ -59,12 +59,13 @@ def _box_union(boxes1: Tensor, boxes2: Tensor) -> Tensor:
     Returns:
         Tensor: shape [..., num_queries, num_gt_boxes]
     """
+    inter = _box_intersection(boxes1, boxes2)
     boxes1 = boxes1.unsqueeze(-2)  # [..., num_queries, 1, 4]
     boxes2 = boxes2.unsqueeze(-3)  # [..., 1, num_gt_boxes, 4]
 
     area1 = (boxes1[..., 2] - boxes1[..., 0]) * (boxes1[..., 3] - boxes1[..., 1])
     area2 = (boxes2[..., 2] - boxes2[..., 0]) * (boxes2[..., 3] - boxes2[..., 1])
-    inter = _box_intersection(boxes1.squeeze(1), boxes2.squeeze(0))
+    
 
     return area1 + area2 - inter
 
@@ -89,7 +90,7 @@ def _box_enclose_area(boxes1: Tensor, boxes2: Tensor) -> Tensor:
 
     return w * h
 
-def _box_giou(boxes1: Tensor, boxes2: Tensor) -> Tensor:
+def _box_giou(boxes1: Tensor, boxes2: Tensor, epsilon: float = 1e-6) -> Tensor:
     """
     Args:
         boxes1 (Tensor): shape [..., num_queries, 4]
@@ -102,10 +103,11 @@ def _box_giou(boxes1: Tensor, boxes2: Tensor) -> Tensor:
 
     inter = _box_intersection(boxes1, boxes2)
     union = _box_union(boxes1, boxes2)
-    iou = inter / union
-
     enclose = _box_enclose_area(boxes1, boxes2)
-    giou = iou - (enclose - union) / enclose
+    
+    iou = inter / (union + epsilon)
+    giou = iou - (enclose - union) / (enclose + epsilon)
+
     return giou
 
 

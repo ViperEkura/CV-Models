@@ -79,7 +79,7 @@ class SetCriterion(Module):
         
         # 3. compute for giou
         box_giou = _box_giou(pred_bbox_matched, gt_bbox_matched)
-        giou_loss = 1 - torch.diag(box_giou).mean()
+        giou_loss = 1 - torch.diagonal(box_giou, dim1=-2, dim2=-1).mean()
 
         total_loss = (
             self.weight_dict["class"] * class_loss +
