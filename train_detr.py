@@ -14,14 +14,14 @@ if __name__ == "__main__":
     download_path = os.path.join(os.getcwd(), 'data', "coco")
     train_path, val_path, annotation_path = download_coco(download_path)
     
-    train_dataset = DETRDataset(train_path, annotation_path, 'instances_train2017.json')
-    val_dataset = DETRDataset(val_path, annotation_path, 'instances_val2017.json')
+    train_dataset = DETRDataset(train_path, annotation_path, mode='train')
+    val_dataset = DETRDataset(val_path, annotation_path, mode='val')
     
     train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, collate_fn=collate_fn_pad)
     test_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, collate_fn=collate_fn_pad)
     
     model = DETR(num_classes=100).to(device)
-    optimizer = optim.AdamW(model.parameters(), lr=1e-4)
+    optimizer = optim.AdamW(model.parameters(), lr=1e-3)
     matcher = HungarianMatcher(1, 5, 2)
     criterion = SetCriterion(num_classes=100, matcher=matcher)
     

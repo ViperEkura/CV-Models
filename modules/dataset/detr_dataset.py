@@ -1,8 +1,10 @@
 import os
 import json
-from typing import Tuple, Dict
-from PIL import Image
 import torch
+
+from PIL import Image
+from typing import Tuple, Dict
+from torch import Tensor
 from torchvision import transforms
 from torch.utils.data import Dataset
 
@@ -31,13 +33,11 @@ class DETRDataset(Dataset):
         self,
         image_dir: str,
         anno_dir: str,
-        anno_file: str,
         image_size: Tuple[int, int] = (224, 224),
         mode: str = 'train'
     ):
         self.image_dir = image_dir
         self.anno_dir = anno_dir
-        self.anno_file = anno_file
         self.image_size = image_size
         self.mode = mode
         
@@ -46,23 +46,26 @@ class DETRDataset(Dataset):
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
+        if mode == 'train':
+            self.image_subdir = 'train2017'
+            self.anno_file = 'instances_train2017.json'
+        elif mode == 'val':
+            self.image_subdir = 'val2017'
+            self.anno_file = 'instances_val2017.json'
+        else:
+            raise ValueError("Unsupported annotation file name.")
+        
         with open(os.path.join(self.anno_dir, self.anno_file), 'r') as f:
             self.annotations = json.load(f)
         
         self.image_ids = [img['id'] for img in self.annotations['images']]
-        if 'train' in self.anno_file:
-            self.image_subdir = 'train2017'
-        elif 'val' in self.anno_file:
-            self.image_subdir = 'val2017'
-        else:
-            raise ValueError("Unsupported annotation file name.")
 
 
     def __len__(self) -> int:
         return len(self.image_ids)
 
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
+    def __getitem__(self, idx: int) -> Tuple[Tensor, Dict[str, Tensor]]:
         image_id = self.image_ids[idx]
         
         image_path = os.path.join(self.image_dir, f"{image_id:012d}.jpg")
