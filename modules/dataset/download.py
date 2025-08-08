@@ -72,7 +72,9 @@ def download_voc(save_dir: str):
     """
 
     os.makedirs(save_dir, exist_ok=True)
-    
+    if os.path.exists(os.path.join(save_dir, "VOCdevkit")):
+        print("VOC dataset already exists. Skipping download.")
+        return
     # Using kagglehub to download the dataset
     print("Downloading VOC dataset using kagglehub...")
     downloaded_path = kagglehub.dataset_download("huanghanchina/pascal-voc-2012")
