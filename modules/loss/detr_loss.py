@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 from torch.nn.modules import Module
-from modules.model.detr import HungarianMatcher, _box_giou
+from modules.model.matcher import HungarianMatcher, _box_giou
 
 
 class SetCriterion(Module):

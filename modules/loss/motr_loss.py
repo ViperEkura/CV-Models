@@ -3,7 +3,7 @@ import torch.nn.functional as F
 
 from torch import nn
 from typing import Dict, List
-from modules.model.detr import HungarianMatcher
+from modules.model.matcher import HungarianMatcher
 
 class MOTRLoss(nn.Module):
     def __init__(
