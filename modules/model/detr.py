@@ -1,11 +1,12 @@
+import lap
 import torch
 import torch.nn as nn
 import numpy as np
 
-from typing import List, Tuple, Dict
 from torch import Tensor
+from typing import List, Tuple, Dict, Literal
 from modules.model.resnet import ResNet
-import lap
+
 
 def jonker_volgenant(cost_matrix: np.ndarray) -> Tuple[int, List[int], List[int]]:
     """
@@ -30,14 +31,24 @@ def _xywh_to_xyxy(boxes: Tensor) -> Tensor:
     x, y, w, h = boxes.unbind(-1)
     return torch.stack([x - w/2, y - h/2, x + w/2, y + h/2], dim=-1)
 
-def _box_intersection(boxes1: Tensor, boxes2: Tensor) -> Tensor:
+def _box_intersection(
+    boxes1: Tensor, 
+    boxes2: Tensor,
+    style: Literal["xywh", "xyxy"] = "xyxy"
+) -> Tensor:
     """
     Args:
         boxes1 (Tensor): shape [..., num_queries, 4]
-        boxes2 (Tensor): shape [..., num_gt_boxes, 4]
+        boxes2 (Tensor): shape [..., num_gt_boxes, 4],
+        style: Literal["xywh", "xyxy"]
     Returns:
         Tensor: shape [..., num_queries, num_gt_boxes]
     """
+    
+    if style == "xywh":
+        boxes1 = _xywh_to_xyxy(boxes1)
+        boxes2 = _xywh_to_xyxy(boxes2)
+    
     boxes1 = boxes1.unsqueeze(-2)  # [..., num_queries, 1, 4]
     boxes2 = boxes2.unsqueeze(-3)  # [..., 1, num_gt_boxes, 4]
 
@@ -51,14 +62,23 @@ def _box_intersection(boxes1: Tensor, boxes2: Tensor) -> Tensor:
     
     return w * h
 
-def _box_union(boxes1: Tensor, boxes2: Tensor) -> Tensor:
+def _box_union(
+    boxes1: Tensor, 
+    boxes2: Tensor,
+    style: Literal["xywh", "xyxy"] = "xyxy"
+) -> Tensor:
     """
     Args:
         boxes1 (Tensor): shape [..., num_queries, 4]
         boxes2 (Tensor): shape [..., num_gt_boxes, 4]
+        style: Literal["xywh", "xyxy"]
     Returns:
         Tensor: shape [..., num_queries, num_gt_boxes]
     """
+    if style == "xywh":
+        boxes1 = _xywh_to_xyxy(boxes1)
+        boxes2 = _xywh_to_xyxy(boxes2)
+    
     inter = _box_intersection(boxes1, boxes2)
     boxes1 = boxes1.unsqueeze(-2)  # [..., num_queries, 1, 4]
     boxes2 = boxes2.unsqueeze(-3)  # [..., 1, num_gt_boxes, 4]
@@ -69,14 +89,23 @@ def _box_union(boxes1: Tensor, boxes2: Tensor) -> Tensor:
 
     return area1 + area2 - inter
 
-def _box_enclose_area(boxes1: Tensor, boxes2: Tensor) -> Tensor:
+def _box_enclose_area(
+    boxes1: Tensor, 
+    boxes2: Tensor,
+    style: Literal["xywh", "xyxy"] = "xyxy"
+) -> Tensor:
     """
     Args:
         boxes1 (Tensor): shape [..., num_queries, 4]
         boxes2 (Tensor): shape [..., num_gt_boxes, 4]
+        style: Literal["xywh", "xyxy"]
     Returns:
         Tensor: shape [..., num_queries, num_gt_boxes]
     """
+    if style == "xywh":
+        boxes1 = _xywh_to_xyxy(boxes1)
+        boxes2 = _xywh_to_xyxy(boxes2)
+    
     boxes1 = boxes1.unsqueeze(-2)  # [..., num_queries, 1, 4]
     boxes2 = boxes2.unsqueeze(-3)  # [..., 1, num_gt_boxes, 4]
 
@@ -90,16 +119,25 @@ def _box_enclose_area(boxes1: Tensor, boxes2: Tensor) -> Tensor:
 
     return w * h
 
-def _box_giou(boxes1: Tensor, boxes2: Tensor, epsilon: float = 1e-6) -> Tensor:
+def _box_giou(
+    boxes1: Tensor, 
+    boxes2: Tensor, 
+    epsilon: float = 1e-6,
+    style: Literal["xywh", "xyxy"] = "xyxy"
+) -> Tensor:
     """
     Args:
         boxes1 (Tensor): shape [..., num_queries, 4]
         boxes2 (Tensor): shape [..., num_gt_boxes, 4]
+        epsilon: float
+        style: Literal["xywh", "xyxy"]
     Returns:
         Tensor: shape [..., num_queries, num_gt_boxes]
     """
-    boxes1 = _xywh_to_xyxy(boxes1)
-    boxes2 = _xywh_to_xyxy(boxes2)
+
+    if style == "xywh":
+        boxes1 = _xywh_to_xyxy(boxes1)
+        boxes2 = _xywh_to_xyxy(boxes2)
 
     inter = _box_intersection(boxes1, boxes2)
     union = _box_union(boxes1, boxes2)
