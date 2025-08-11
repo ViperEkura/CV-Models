@@ -140,7 +140,7 @@ class VOCDataset(Dataset):
                 classes.add(class_name)
 
         self.classes = ('__background__',) + tuple(sorted(classes))
-        self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
+        self.class_to_idx_dict = {cls: idx for idx, cls in enumerate(self.classes)}
 
     def __len__(self):
         return len(self.image_ids)
@@ -173,10 +173,10 @@ class VOCDataset(Dataset):
         original_height = int(size.find('height').text)
 
 
-        background_idx = self.class_to_idx['__background__']
+        background_idx = self.class_to_idx_dict['__background__']
         for obj in root.findall('object'):
             class_name = obj.find('name').text
-            labels.append(self.class_to_idx.get(class_name, background_idx))
+            labels.append(self.class_to_idx_dict.get(class_name, background_idx))
             
             bbox = obj.find('bndbox')
             xmin = float(bbox.find('xmin').text) / original_width
@@ -192,6 +192,8 @@ class VOCDataset(Dataset):
 
         return target
 
-    @staticmethod
-    def collate_fn(batch):
-        return tuple(zip(*batch))
+    def class_to_idx(self, class_name):
+        return self.classes.index(class_name)
+    
+    def idx_to_class(self, idx):
+        return self.classes[idx]
