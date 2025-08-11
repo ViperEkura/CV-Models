@@ -71,17 +71,23 @@ class SetCriterion(Module):
         
         # [B, Q, 1]
         match_mask = row_inds.eq(-1).unsqueeze(-1)
-        backgoound_mask = gt_class_expanded.eq(0).unsqueeze(-1)
+        background_mask = gt_class_expanded.eq(0).unsqueeze(-1)
+        invalid_mask = background_mask | match_mask
         
         # [B, Q, 4]
-        pred_bbox_matched = torch.masked_fill(input=pred_bbox, mask=match_mask | backgoound_mask, value=0)
-        gt_bbox_matched = torch.masked_fill(input=gt_bbox_expanded, mask=backgoound_mask, value=0)
-        num_objs = backgoound_mask.logical_not().sum().clamp(min=1)
+        pred_bbox_matched = torch.masked_fill(input=pred_bbox, mask=invalid_mask, value=0)
+        gt_bbox_matched = torch.masked_fill(input=gt_bbox_expanded, mask=invalid_mask, value=0)
+        num_objs = invalid_mask.logical_not().sum().clamp(min=1)
         bbox_loss = F.l1_loss(pred_bbox_matched.flatten(), gt_bbox_matched.flatten(), reduction="none").sum() / num_objs
         
         # 3. compute for giou
-        box_giou = _box_giou(pred_bbox_matched, gt_bbox_matched)
-        giou_loss = 1 - torch.diagonal(box_giou, dim1=-2, dim2=-1).mean()
+        valid_mask = invalid_mask.logical_not().expand(-1, -1, 4)               # [B, Q, 4]
+        pred_bbox_selected = pred_bbox[valid_mask].view(-1, 4)                  # [N, 4]
+        gt_bbox_selected = gt_bbox_expanded[valid_mask].view(-1, 4)             # [N, 4]
+        giou = torch.diagonal(_box_giou(pred_bbox_selected , gt_bbox_selected)) # [N]
+        giou_loss = (1 - giou).mean()
+            
+        # print(f"class_loss: {class_loss:.4f}, bbox_loss: {bbox_loss:.4f}, giou_loss: {giou_loss:.4f}")
 
         total_loss = (
             self.weight_dict["class"] * class_loss +
