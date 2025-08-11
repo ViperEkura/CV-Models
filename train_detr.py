@@ -1,5 +1,5 @@
-from modules.dataset import download_coco
-from modules.dataset.dataset import COCODataset, collate_fn_pad
+from modules.dataset.dataset import VOCDataset, collate_fn_pad
+from modules.dataset.download import download_voc
 from modules.model import DETR, HungarianMatcher
 from modules.loss.detr_loss import SetCriterion
 from modules.utils.detection import train_loop
@@ -11,11 +11,11 @@ import os
 
 if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    download_path = os.path.join(os.getcwd(), 'data', "coco")
-    train_path, val_path, annotation_path = download_coco(download_path)
     
-    train_dataset = COCODataset(train_path, annotation_path, mode='train')
-    val_dataset = COCODataset(val_path, annotation_path, mode='val')
+    download_voc(os.path.join(os.getcwd(), 'data', 'voc'))
+    dataset_path = os.path.join(os.getcwd(), 'data', 'voc', 'VOC2012')
+    train_dataset = VOCDataset(root_dir=dataset_path, split='train')
+    val_dataset = VOCDataset(root_dir=dataset_path, split='val')
     
     train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, collate_fn=collate_fn_pad)
     test_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, collate_fn=collate_fn_pad)

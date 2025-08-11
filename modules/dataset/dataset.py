@@ -152,7 +152,7 @@ class VOCDataset(Dataset):
         target = self._load_target(image_id)
         image = self.transform(image)
 
-        return image, target
+        return image, target["labels"], target["boxes"]
 
     def _load_image(self, image_id):
         image_path = os.path.join(self.image_dir, f'{image_id}.jpg')
