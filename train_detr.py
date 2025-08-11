@@ -1,5 +1,5 @@
 from modules.dataset import download_coco
-from modules.dataset.detr_dataset import DETRDataset, collate_fn_pad
+from modules.dataset.dataset import COCODataset, collate_fn_pad
 from modules.model import DETR, HungarianMatcher
 from modules.loss.detr_loss import SetCriterion
 from modules.utils.detection import train_loop
@@ -14,8 +14,8 @@ if __name__ == "__main__":
     download_path = os.path.join(os.getcwd(), 'data', "coco")
     train_path, val_path, annotation_path = download_coco(download_path)
     
-    train_dataset = DETRDataset(train_path, annotation_path, mode='train')
-    val_dataset = DETRDataset(val_path, annotation_path, mode='val')
+    train_dataset = COCODataset(train_path, annotation_path, mode='train')
+    val_dataset = COCODataset(val_path, annotation_path, mode='val')
     
     train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, collate_fn=collate_fn_pad)
     test_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, collate_fn=collate_fn_pad)
