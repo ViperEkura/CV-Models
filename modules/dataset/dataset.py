@@ -172,13 +172,6 @@ class VOCDataset(Dataset):
         original_width = int(size.find('width').text)
         original_height = int(size.find('height').text)
 
-        # 计算缩放比例
-        if self.default_image_size is not None:
-            new_width, new_height = self.default_image_size
-            scale_x = new_width / original_width
-            scale_y = new_height / original_height
-        else:
-            scale_x = scale_y = 1.0
 
         background_idx = self.class_to_idx['__background__']
         for obj in root.findall('object'):
@@ -186,10 +179,10 @@ class VOCDataset(Dataset):
             labels.append(self.class_to_idx.get(class_name, background_idx))
             
             bbox = obj.find('bndbox')
-            xmin = float(bbox.find('xmin').text) * scale_x
-            ymin = float(bbox.find('ymin').text) * scale_y
-            xmax = float(bbox.find('xmax').text) * scale_x
-            ymax = float(bbox.find('ymax').text) * scale_y 
+            xmin = float(bbox.find('xmin').text) / original_width
+            ymin = float(bbox.find('ymin').text) / original_height
+            xmax = float(bbox.find('xmax').text) / original_width
+            ymax = float(bbox.find('ymax').text) / original_height
             boxes.append([xmin, ymin, xmax, ymax])
 
         target = {

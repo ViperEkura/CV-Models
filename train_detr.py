@@ -21,8 +21,8 @@ if __name__ == "__main__":
     test_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, collate_fn=collate_fn_pad)
     
     model = DETR(num_classes=100).to(device)
-    optimizer = optim.AdamW(model.parameters(), lr=1e-3)
+    optimizer = optim.AdamW(model.parameters())
     matcher = HungarianMatcher(1, 5, 2)
     criterion = SetCriterion(num_classes=100, matcher=matcher)
     
-    train_loop(model, train_loader, test_loader, optimizer, criterion, 1, 1, device)
+    train_loop(model, train_loader, test_loader, optimizer, criterion, 1, 4, device)

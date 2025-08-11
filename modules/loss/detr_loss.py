@@ -30,23 +30,23 @@ class SetCriterion(Module):
     ) -> Tensor:
         """
         Args:
-            pred_class (Tensor): shape [batch_size, num_queries, num_classes + 1]
-            pred_bbox (Tensor): shape [batch_size, num_queries, 4]
-            gt_class (Tensor): shape [batch_size, num_gt_boxes]
-            gt_bbox (Tensor): shape [batch_size, num_gt_boxes, 4]
+            pred_class (Tensor): shape [B, Q, C + 1]
+            pred_bbox (Tensor): shape [B, Q, 4]
+            gt_class (Tensor): shape [B, G]
+            gt_bbox (Tensor): shape [B, G, 4]
         Returns:
             Tensor: total loss
         """
 
-        batch_size, num_queries = pred_class.size(0), pred_class.size(1)
+        B, Q = pred_class.size(0), pred_class.size(1)
 
         row_inds, col_inds = self.matcher.match(pred_class, pred_bbox, gt_class, gt_bbox)
         self.empty_weight = self.empty_weight.to(pred_class.device)
-        # rol_inds: [batch_size, num_queries], col_inds: [batch_size, num_gt_boxes]
+        # rol_inds: [B, Q], col_inds: [B, G]
         
         # 1. class loss compute
         gt_class_expanded = torch.full(
-            (batch_size, num_queries),
+            (B, Q),
             fill_value=0, 
             device=gt_class.device,
             dtype=gt_class.dtype
@@ -54,14 +54,14 @@ class SetCriterion(Module):
         gt_class_expanded = gt_class_expanded.scatter(dim=1, index=col_inds, src=gt_class)
         
         class_loss = F.cross_entropy(
-            pred_class.flatten(0, 1),           # [batch_size * num_queries, num_classes + 1]
-            gt_class_expanded.flatten(),        # [batch_size * num_queries]
+            pred_class.flatten(0, 1),           # [B * Q, C + 1]
+            gt_class_expanded.flatten(),        # [B * Q]
             self.empty_weight
         )
         
         # 2. compute for bbox
         gt_bbox_expanded = torch.full(
-            (batch_size, num_queries, 4),
+            (B, Q, 4),
             fill_value=0, 
             device=gt_bbox.device,
             dtype=gt_bbox.dtype
@@ -69,13 +69,15 @@ class SetCriterion(Module):
         expand_col_inds = col_inds.unsqueeze(-1).expand(-1, -1, 4)
         gt_bbox_expanded = gt_bbox_expanded.scatter(dim=1, index=expand_col_inds, src=gt_bbox)
         
+        # [B, Q, 1]
         match_mask = row_inds.eq(-1).unsqueeze(-1)
-        obj_mask = gt_class_expanded.eq(0).unsqueeze(-1)
+        backgoound_mask = gt_class_expanded.eq(0).unsqueeze(-1)
         
-        # [batch_size, num_queries, 4]
-        pred_bbox_matched = torch.masked_fill(input=pred_bbox, mask=match_mask | obj_mask, value=0)
-        gt_bbox_matched = torch.masked_fill(input=gt_bbox_expanded, mask=match_mask, value=0)
-        bbox_loss = F.l1_loss(pred_bbox_matched.flatten(), gt_bbox_matched.flatten(), reduction="none").sum() / obj_mask.sum().clamp(min=1)
+        # [B, Q, 4]
+        pred_bbox_matched = torch.masked_fill(input=pred_bbox, mask=match_mask | backgoound_mask, value=0)
+        gt_bbox_matched = torch.masked_fill(input=gt_bbox_expanded, mask=backgoound_mask, value=0)
+        num_objs = backgoound_mask.logical_not().sum().clamp(min=1)
+        bbox_loss = F.l1_loss(pred_bbox_matched.flatten(), gt_bbox_matched.flatten(), reduction="none").sum() / num_objs
         
         # 3. compute for giou
         box_giou = _box_giou(pred_bbox_matched, gt_bbox_matched)
