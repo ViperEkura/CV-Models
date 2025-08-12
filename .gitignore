@@ -5,16 +5,16 @@
 *.png
 *.jpg
 
-
 # cache
+.pytest_cache/
 *__pycache__
 *.pyc
-
-# test
-test*.ipynb
 
 #pip 
 *.egg-info
 
 # vscode
 .vscode/
+
+# test
+test*.ipynb
