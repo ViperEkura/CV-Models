@@ -81,9 +81,8 @@ def _box_union(
     boxes1 = boxes1.unsqueeze(-2)  # [..., num_queries, 1, 4]
     boxes2 = boxes2.unsqueeze(-3)  # [..., 1, num_gt_boxes, 4]
 
-    area1 = (boxes1[..., 2] - boxes1[..., 0]) * (boxes1[..., 3] - boxes1[..., 1])
-    area2 = (boxes2[..., 2] - boxes2[..., 0]) * (boxes2[..., 3] - boxes2[..., 1])
-    
+    area1 = (boxes1[..., 2] - boxes1[..., 0]) * (boxes1[..., 3] - boxes1[..., 1]).clamp(min=0)
+    area2 = (boxes2[..., 2] - boxes2[..., 0]) * (boxes2[..., 3] - boxes2[..., 1]).clamp(min=0)
 
     return area1 + area2 - inter
 
@@ -112,8 +111,8 @@ def _box_enclose_area(
     x2 = torch.max(boxes1[..., 2], boxes2[..., 2])
     y2 = torch.max(boxes1[..., 3], boxes2[..., 3])
 
-    w = x2 - x1
-    h = y2 - y1
+    w = torch.clamp(x2 - x1, min=0)
+    h = torch.clamp(y2 - y1, min=0)
 
     return w * h
 
@@ -141,8 +140,8 @@ def _box_giou(
     union = _box_union(boxes1, boxes2)
     enclose = _box_enclose_area(boxes1, boxes2)
     
-    iou = inter / (union + epsilon)
-    giou = iou - (enclose - union) / (enclose + epsilon)
+    iou = inter / torch.clamp(union, min=epsilon)
+    giou = (iou - (enclose - union) / torch.clamp(enclose, min=epsilon)).clamp(min=-1, max=1)
 
     return giou
 

@@ -86,8 +86,6 @@ class SetCriterion(Module):
         gt_bbox_selected = gt_bbox_expanded[valid_mask].view(-1, 4)             # [N, 4]
         giou = torch.diagonal(_box_giou(pred_bbox_selected , gt_bbox_selected)) # [N]
         giou_loss = (1 - giou).mean()
-            
-        # print(f"class_loss: {class_loss:.4f}, bbox_loss: {bbox_loss:.4f}, giou_loss: {giou_loss:.4f}")
 
         total_loss = (
             self.weight_dict["class"] * class_loss +
