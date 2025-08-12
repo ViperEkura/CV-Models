@@ -12,3 +12,9 @@
 
 # test
 test*.ipynb
+
+#pip 
+*.egg-info
+
+# vscode
+.vscode/
