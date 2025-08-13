@@ -2,7 +2,7 @@ from modules.dataset.dataset import VOCDataset, collate_fn_pad
 from modules.dataset.download import download_voc
 from modules.model import DETR, HungarianMatcher
 from modules.loss.detr_loss import SetCriterion
-from modules.utils.detection import train_loop
+from modules.utils.detection import train_fn
 from torch.utils.data import DataLoader
 from torch import optim
 import torch
@@ -25,4 +25,5 @@ if __name__ == "__main__":
     matcher = HungarianMatcher(1, 5, 2)
     criterion = SetCriterion(num_classes=100, matcher=matcher)
     
-    train_loop(model, train_loader, test_loader, optimizer, criterion, 1, 4, device)
+    train_fn(model, train_loader, optimizer, criterion, 1, device, 4)
+    torch.save(model.state_dict(), 'detr.pth')
