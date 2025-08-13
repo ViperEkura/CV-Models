@@ -23,7 +23,7 @@ if __name__ == "__main__":
     model = DETR(num_classes=100).to(device)
     optimizer = optim.AdamW(model.parameters())
     matcher = HungarianMatcher(1, 5, 2)
-    criterion = SetCriterion(num_classes=100, matcher=matcher)
+    criterion = SetCriterion(num_classes=100, matcher=matcher, eos_coef=0.05)
     
     train_fn(model, train_loader, optimizer, criterion, 1, device, 4)
     torch.save(model.state_dict(), 'detr.pth')

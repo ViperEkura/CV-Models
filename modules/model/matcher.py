@@ -13,12 +13,20 @@ def jonker_volgenant(cost_matrix: np.ndarray) -> Tuple[int, List[int], List[int]
         cost_matrix (np.ndarray): shape [num_queries, num_gt_boxes]
     Returns:
         Tuple[int, np.ndarray, np.ndarray]:
-            total_cost (int): cost of the assignment
             row_indices (np.ndarray): row indices of the optimal assignment
             col_indices (np.ndarray): column indices of the optimal assignment
     """
     assert cost_matrix.ndim == 2
-    return lap.lapjv(cost_matrix, extend_cost=True)
+    _, row_inds, _ = lap.lapjv(cost_matrix, extend_cost=True)
+    row_indices, col_indices = [], []
+    
+    for i in range(len(row_inds)):
+        if row_inds[i] != -1:
+            row_indices.append(i)
+            col_indices.append(row_inds[i])
+    
+    return row_indices, col_indices 
+
 
 
 class HungarianMatcher:
@@ -66,9 +74,9 @@ class HungarianMatcher:
             C = self.cost_class * cost_class + self.cost_bbox * cost_bbox + self.cost_giou * cost_giou
             C = C.reshape(pred_class.shape[1], -1).cpu().numpy().astype(np.float64)  # [num_queries, num_gt_boxes]
 
-            _, row_ind, col_ind = jonker_volgenant(C)
-            row_inds.append(torch.from_numpy(row_ind).long())
-            col_inds.append(torch.from_numpy(col_ind).long())
+            row_ind, col_ind = jonker_volgenant(C)
+            row_inds.append(torch.tensor(row_ind).long())
+            col_inds.append(torch.tensor(col_ind).long())
         
         row_inds_cat = torch.stack(row_inds).to(device=device) # [batch_size, num_queries]
         col_inds_cat = torch.stack(col_inds).to(device=device) # [batch_size, num_gt_boxes]

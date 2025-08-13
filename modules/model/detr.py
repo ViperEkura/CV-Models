@@ -57,7 +57,9 @@ class DETR(nn.Module):
         h = h.flatten(2).transpose(1, 2)        # [batch_size, H*W, hidden_dim]
         h = self.transformer(
             src=pos + h,                                                # [batch_size, H*W, hidden_dim]
-            tgt=self.query_pos.unsqueeze(0).repeat(B, 1, 1)             # [batch_size, num_queries, hidden_dim]
+            tgt=self.query_pos.unsqueeze(0).repeat(B, 1, 1),            # [batch_size, num_queries, hidden_dim]
+            src_is_causal=False,
+            tgt_is_causal=False,
         )                                                               # output: [batch_size, num_queries, hidden_dim]
         
         pred_class = self.linear_class(h)                               # [batch_size, num_queries, num_classes+1]
