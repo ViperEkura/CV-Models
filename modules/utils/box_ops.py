@@ -21,7 +21,6 @@ def box_intersection(
     Args:
         boxes1 (Tensor): shape [..., num_queries, 4]
         boxes2 (Tensor): shape [..., num_gt_boxes, 4],
-        style: Literal["xywh", "xyxy"]
     Returns:
         Tensor: shape [..., num_queries, num_gt_boxes]
     """
@@ -34,10 +33,10 @@ def box_intersection(
     x2 = torch.min(boxes1[..., 2], boxes2[..., 2])
     y2 = torch.min(boxes1[..., 3], boxes2[..., 3])
 
-    w = x2 - x1
-    h = y2 - y1
+    w = torch.clamp(x2 - x1, min=0)
+    h = torch.clamp(y2 - y1, min=0)
     
-    return (w * h).clamp(min=0)
+    return w * h
 
 def box_union(
     boxes1: Tensor, 
@@ -50,21 +49,20 @@ def box_union(
     Returns:
         Tensor: shape [..., num_queries, num_gt_boxes]
     """
-
-    
     inter = box_intersection(boxes1, boxes2)
-    boxes1 = boxes1.unsqueeze(-2)  # [..., num_queries, 1, 4]
-    boxes2 = boxes2.unsqueeze(-3)  # [..., 1, num_gt_boxes, 4]
 
-    area1 = (boxes1[..., 2] - boxes1[..., 0]) * (boxes1[..., 3] - boxes1[..., 1])
-    area2 = (boxes2[..., 2] - boxes2[..., 0]) * (boxes2[..., 3] - boxes2[..., 1])
-
-    return (area1 + area2 - inter).clamp(min=0)
+    area1 = (boxes1[..., 2] - boxes1[..., 0]) * (boxes1[..., 3] - boxes1[..., 1]) # [..., num_queries]
+    area2 = (boxes2[..., 2] - boxes2[..., 0]) * (boxes2[..., 3] - boxes2[..., 1]) # [..., num_gt_boxes]
+    
+    # fix the shape bug
+    area1 = area1.unsqueeze(-1) # [..., num_queries, 1]
+    area2 = area2.unsqueeze(-2) # [..., 1, num_gt_boxes]
+    
+    return area1 + area2 - inter
 
 def box_enclose_area(
     boxes1: Tensor, 
     boxes2: Tensor,
-    style: Literal["xywh", "xyxy"] = "xyxy"
 ) -> Tensor:
     """
     Args:
@@ -73,7 +71,6 @@ def box_enclose_area(
     Returns:
         Tensor: shape [..., num_queries, num_gt_boxes]
     """
-
     boxes1 = boxes1.unsqueeze(-2)  # [..., num_queries, 1, 4]
     boxes2 = boxes2.unsqueeze(-3)  # [..., 1, num_gt_boxes, 4]
 
@@ -82,30 +79,28 @@ def box_enclose_area(
     x2 = torch.max(boxes1[..., 2], boxes2[..., 2])
     y2 = torch.max(boxes1[..., 3], boxes2[..., 3])
 
-    w = x2 - x1
-    h = y2 - y1
+    w = torch.clamp(x2 - x1, min=0)
+    h = torch.clamp(y2 - y1, min=0)
 
-    return (w * h).clamp(min=0)
+    return w * h
 
 def box_giou(
     boxes1: Tensor, 
-    boxes2: Tensor, 
-    epsilon: float = 1e-6,
+    boxes2: Tensor,
+    epsilon:float = 1e-6
 ) -> Tensor:
     """
     Args:
         boxes1 (Tensor): shape [..., num_queries, 4]
         boxes2 (Tensor): shape [..., num_gt_boxes, 4]
-        epsilon: float
     Returns:
         Tensor: shape [..., num_queries, num_gt_boxes]
     """
-
     inter = box_intersection(boxes1, boxes2)
     union = box_union(boxes1, boxes2)
     enclose = box_enclose_area(boxes1, boxes2)
     
     iou = inter / torch.clamp(union, min=epsilon)
-    giou = (iou - (enclose - union) / torch.clamp(enclose, min=epsilon)).clamp(min=-1, max=1)
-
-    return giou
+    giou = iou - (enclose - union) / torch.clamp(enclose, min=epsilon)
+    
+    return torch.clamp(giou, min=-1.0, max=1.0)

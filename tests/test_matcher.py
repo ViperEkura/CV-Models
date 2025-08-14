@@ -1,9 +1,11 @@
 import torch
 import numpy as np
 import torch.nn.functional as F
+import torchvision
 
 from modules.model.matcher import HungarianMatcher, jonker_volgenant
 from modules.utils.box_ops import box_giou
+
 
 
 def manual_match(pred_class, pred_bbox, gt_class, gt_bbox, alpha=1, beta=5, gamma=2):
@@ -39,7 +41,23 @@ def manual_match(pred_class, pred_bbox, gt_class, gt_bbox, alpha=1, beta=5, gamm
 
 
 def test_box_giou():
-    pass
+    # 随机生成10个边界框
+    boxes1 = torch.rand(10, 4)
+    boxes2 = torch.rand(10, 4)
+
+    boxes1[:, :2] = torch.rand(10, 2) * 0.5
+    boxes1[:, 2:] = boxes1[:, :2] + torch.rand(10, 2) * 0.5
+
+    boxes2[:, :2] = torch.rand(10, 2) * 0.5
+    boxes2[:, 2:] = boxes2[:, :2] + torch.rand(10, 2) * 0.5
+
+    giou = box_giou(boxes1, boxes2)
+    f_giou = giou
+    std_giou = torchvision.ops.generalized_box_iou(boxes1, boxes2)
+    
+    assert torch.allclose(f_giou, std_giou), "Giou计算结果不一致"
+    assert giou.shape == (10, 10), "IoU矩阵维度应为(10, 10)"
+    assert (giou >= -1).all() and (giou <= 1).all(), "IoU值应在[0, 1]范围内"
 
 
 def test_matcher_against_manual():
@@ -118,29 +136,6 @@ def test_hungarian_matcher_matching():
     # 验证返回值
     assert isinstance(row_inds, torch.Tensor)
     assert isinstance(col_inds, torch.Tensor)
-
-
-def test_box_giou():
-    """测试GIoU计算函数"""
-    # 创建两个相同的边界框
-    boxes1 = torch.tensor([[0.0, 0.0, 1.0, 1.0]])
-    boxes2 = torch.tensor([[0.0, 0.0, 1.0, 1.0]])
-    
-    giou = box_giou(boxes1, boxes2)
-    
-    # 相同的框应该有GIoU值为1
-    assert torch.allclose(giou, torch.tensor([[1.0]]), atol=1e-6)
-    
-    # 创建两个不相交的边界框
-    boxes1 = torch.tensor([[0.0, 0.0, 0.5, 0.5]])
-    boxes2 = torch.tensor([[0.5, 0.5, 1.0, 1.0]])
-    
-    giou = box_giou(boxes1, boxes2)
-    
-    # 不相交的框应该有负的GIoU值
-    assert (giou < 1).all()
-    assert (giou >= -1).all()
-
 
 def test_matcher_cost_weight_dict():
     """测试匹配器权重字典"""
