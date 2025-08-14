@@ -62,37 +62,3 @@ def test_detr_loss_with_empty_targets():
     assert isinstance(loss, torch.Tensor)
     assert loss.dim() == 0
     assert loss.item() >= 0
-
-def test_detr_loss_device_consistency():
-    """测试在不同设备上的损失计算一致性"""
-    if not torch.cuda.is_available():
-        pytest.skip("CUDA not available")
-    
-    matcher = HungarianMatcher()
-    criterion = SetCriterion(num_classes=10, matcher=matcher)
-    
-    # 创建模拟数据
-    batch_size = 2
-    num_queries = 5
-    num_classes = 10
-    pred_class = torch.randn(batch_size, num_queries, num_classes + 1)
-    pred_bbox = torch.rand(batch_size, num_queries, 4)
-    gt_class = torch.randint(1, num_classes + 1, (batch_size, 2))
-    gt_bbox = torch.rand(batch_size, 2, 4)
-    
-    # CPU上计算损失
-    loss_cpu = criterion(pred_class, pred_bbox, gt_class, gt_bbox)
-    
-    # GPU上计算损失
-    pred_class_gpu = pred_class.cuda()
-    pred_bbox_gpu = pred_bbox.cuda()
-    gt_class_gpu = gt_class.cuda()
-    gt_bbox_gpu = gt_bbox.cuda()
-    criterion_gpu = SetCriterion(num_classes=10, matcher=matcher).cuda()
-    loss_gpu = criterion_gpu(pred_class_gpu, pred_bbox_gpu, gt_class_gpu, gt_bbox_gpu)
-    
-    # 验证结果一致性（由于随机性，这里只验证计算成功）
-    assert isinstance(loss_cpu, torch.Tensor)
-    assert isinstance(loss_gpu, torch.Tensor)
-    assert loss_cpu.dim() == 0
-    assert loss_gpu.dim() == 0

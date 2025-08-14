@@ -53,14 +53,15 @@ class SetCriterion(Module):
         pred_bbox_permuted = pred_bbox[batch_idx, row_inds]
         gt_bbox_permuted = gt_bbox[batch_idx, col_inds]
         valid_mask = gt_class_permuted.greater(0)
+        valid_num = valid_mask.sum().clamp(min=1)
         pred_bbox_permuted = pred_bbox_permuted[valid_mask]
         gt_bbox_permuted = gt_bbox_permuted[valid_mask]
-        bbox_loss = F.l1_loss(pred_bbox_permuted, gt_bbox_permuted, reduction="mean")
+        bbox_loss = F.l1_loss(pred_bbox_permuted, gt_bbox_permuted, reduction="none").sum() / valid_num
         
         # 3 giou loss
         box_matrix = box_giou(xywh_to_xyxy(pred_bbox_permuted), xywh_to_xyxy(gt_bbox_permuted))
         giou = torch.diagonal(box_matrix, dim1=-2, dim2=-1)
-        giou_loss = torch.mean(1 - giou)
+        giou_loss = torch.sum(1 - giou) / valid_num
         
         total_loss = (
             self.weight_dict["class"] * class_loss +
