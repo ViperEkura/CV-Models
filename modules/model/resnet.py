@@ -99,9 +99,8 @@ class ResNet(nn.Module):
 
     def forward(self, x):
         out = F.relu(self.bn(self.conv(x)))
-        for layer in self.layers:
-            out = layer(out)
-            
+        out = self.layers(out)
+        
         if self.out_dim is not None:
             out = F.avg_pool2d(out, 4)
             out = out.view(out.size(0), -1)
