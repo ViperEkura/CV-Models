@@ -4,7 +4,7 @@ import numpy as np
 
 from torch import Tensor
 from typing import List, Tuple, Dict
-from modules.utils.box_ops import _box_giou
+from modules.utils.box_ops import box_giou, xywh_to_xyxy
 
 
 def jonker_volgenant(cost_matrix: np.ndarray) -> Tuple[int, List[int], List[int]]:
@@ -89,11 +89,11 @@ class HungarianMatcher:
         return cost_class
     
     def _compute_bbox_cost(self, pred_bbox, gt_bbox) -> Tensor:
-        cost_bbox = torch.cdist(pred_bbox, gt_bbox, p=1)    # [num_queries, num_gt_boxes]
+        cost_bbox = torch.cdist(pred_bbox, gt_bbox, p=1) # [num_queries, num_gt_boxes]
         return cost_bbox
     
-    def _compute_giou_cost(self, pred_bbox: Tensor, gt_bbox: Tensor):
-        giou = _box_giou(pred_bbox, gt_bbox)                # [num_queries, num_gt_boxes]
+    def _compute_giou_cost(self, pred_bbox: Tensor, gt_bbox: Tensor) -> Tensor:
+        giou = box_giou(xywh_to_xyxy(pred_bbox), xywh_to_xyxy(gt_bbox)) # [num_queries, num_gt_boxes]
         cost_giou = 1 - giou
         return cost_giou
 

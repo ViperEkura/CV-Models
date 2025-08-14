@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.nn.modules import Module
 from modules.model.matcher import HungarianMatcher
-from modules.utils.box_ops import _box_giou
+from modules.utils.box_ops import box_giou, xywh_to_xyxy
 
 
 class SetCriterion(Module):
@@ -45,17 +45,21 @@ class SetCriterion(Module):
         batch_idx = torch.arange(B, device=pred_class.device).view(-1, 1).expand_as(row_inds)
 
         # 1. class loss
-        pred_class_permuted = pred_class[batch_idx, row_inds].flatten(0, 1)
-        gt_class_permuted = gt_class[batch_idx, col_inds].flatten()
-        class_loss = F.cross_entropy(pred_class_permuted, gt_class_permuted, self.empty_weight)
+        pred_class_permuted = pred_class[batch_idx, row_inds]
+        gt_class_permuted = gt_class[batch_idx, col_inds]
+        class_loss = F.cross_entropy(pred_class_permuted.flatten(0, 1), gt_class_permuted.flatten(), self.empty_weight)
         
         # 2. box loss
         pred_bbox_permuted = pred_bbox[batch_idx, row_inds]
         gt_bbox_permuted = gt_bbox[batch_idx, col_inds]
-        bbox_loss = F.l1_loss(pred_bbox_permuted.flatten(), gt_bbox_permuted.flatten(), reduction="mean")
+        vlaid_mask = gt_class_permuted.greater(0)
+        pred_bbox_permuted = pred_bbox_permuted[vlaid_mask]
+        gt_bbox_permuted = gt_bbox_permuted[vlaid_mask]
+        bbox_loss = F.l1_loss(pred_bbox_permuted, gt_bbox_permuted, reduction="mean")
         
         # 3 giou loss
-        giou = torch.diagonal(_box_giou(pred_bbox_permuted, gt_bbox_permuted), dim1=-2, dim2=-1)
+        box_matrix = box_giou(xywh_to_xyxy(pred_bbox_permuted), xywh_to_xyxy(gt_bbox_permuted))
+        giou = torch.diagonal(box_matrix, dim1=-2, dim2=-1)
         giou_loss = torch.mean(1 - giou)
         
         total_loss = (
