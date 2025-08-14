@@ -39,12 +39,10 @@ class SetCriterion(Module):
             Tensor: total loss
         """
         
-        B, G, Q = pred_class.size(0), gt_class.size(1), pred_class.size(1)
-        batch_idx = torch.arange(B, device=pred_class.device).unsqueeze(-1).expand(B, min(G, Q))
+        B = pred_class.size(0)
         self.empty_weight = self.empty_weight.to(pred_class.device)
-        
-        row_inds, col_inds = self.matcher.match(pred_class, pred_bbox, gt_class, gt_bbox)
-        # rol_inds, col_inds: [B, min(G, Q)]
+        row_inds, col_inds = self.matcher.match(pred_class, pred_bbox, gt_class, gt_bbox)   # inds: [B, min(G, Q)]
+        batch_idx = torch.arange(B, device=pred_class.device).view(-1, 1).expand_as(row_inds)
 
         # 1. class loss
         pred_class_permuted = pred_class[batch_idx, row_inds].flatten(0, 1)

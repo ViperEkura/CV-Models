@@ -81,9 +81,14 @@ class COCODataset(Dataset):
         
         for anno in annos:
             x_min, y_min, w, h = anno['bbox']
-            x_max = x_min + w
-            y_max = y_min + h
-            boxes.append([x_min, y_min, x_max, y_max])
+            # Convert to normalized xywh format
+            x_center = x_min + w / 2
+            y_center = y_min + h / 2
+            x_center_norm = x_center / self.image_size[1]  # width
+            y_center_norm = y_center / self.image_size[0]  # height
+            w_norm = w / self.image_size[1]
+            h_norm = h / self.image_size[0]
+            boxes.append([x_center_norm, y_center_norm, w_norm, h_norm])
             labels.append(anno['category_id'])
         
         if not annos:
@@ -93,15 +98,11 @@ class COCODataset(Dataset):
             boxes = torch.tensor(boxes, dtype=torch.float32)
             labels = torch.tensor(labels, dtype=torch.int64)
         
-        h, w = self.image_size
-        boxes[:, [0, 2]] /= w
-        boxes[:, [1, 3]] /= h
-        
         image = self.transform(image)
         
         return image, labels, boxes
     
-    
+
 class VOCDataset(Dataset):
     
     def __init__(
@@ -183,7 +184,13 @@ class VOCDataset(Dataset):
             ymin = float(bbox.find('ymin').text) / original_height
             xmax = float(bbox.find('xmax').text) / original_width
             ymax = float(bbox.find('ymax').text) / original_height
-            boxes.append([xmin, ymin, xmax, ymax])
+            
+            # Convert to xywh format
+            x_center = (xmin + xmax) / 2
+            y_center = (ymin + ymax) / 2
+            w = xmax - xmin
+            h = ymax - ymin
+            boxes.append([x_center, y_center, w, h])
 
         target = {
             'boxes': torch.as_tensor(boxes, dtype=torch.float32),
