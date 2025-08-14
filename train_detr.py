@@ -21,9 +21,9 @@ if __name__ == "__main__":
     test_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, collate_fn=collate_fn_pad)
     
     model = DETR(num_classes=100).to(device)
-    optimizer = optim.AdamW(model.parameters(), lr=3e-4)
+    optimizer = optim.AdamW(model.parameters(), lr=5e-4)
     matcher = HungarianMatcher(1, 5, 2)
-    criterion = SetCriterion(num_classes=100, matcher=matcher, eos_coef=0.05)
+    criterion = SetCriterion(num_classes=100, matcher=matcher, eos_coef=0.1)
     
     train_fn(model, train_loader, optimizer, criterion, 1, device, 4)
     torch.save(model.state_dict(), 'detr.pth')

@@ -3,6 +3,7 @@ import torch.nn as nn
 
 from torch import Tensor
 from typing import Tuple
+from torch.nn.init import normal_
 from modules.model.resnet import ResNet
 
 
@@ -29,10 +30,16 @@ class DETR(nn.Module):
         )
         self.linear_class = nn.Linear(hidden_dim, num_classes + 1)          # +1 for background
         self.linear_bbox = nn.Linear(hidden_dim, 4)                         # bbox(x,y,w,h)
-        self.query_pos = nn.Parameter(torch.rand(num_queries, hidden_dim))
-        self.row_embed = nn.Parameter(torch.rand(50, hidden_dim // 2))      # 50x50
-        self.col_embed = nn.Parameter(torch.rand(50, hidden_dim // 2))
+        self.query_pos = nn.Parameter(torch.empty(num_queries, hidden_dim))
+        self.row_embed = nn.Parameter(torch.empty(50, hidden_dim // 2))      # 50x50
+        self.col_embed = nn.Parameter(torch.empty(50, hidden_dim // 2))
         self.num_queries = num_queries
+        self.init_parameters()
+    
+    def init_parameters(self):
+        normal_(self.row_embed, std=0.01)
+        normal_(self.col_embed, std=0.01)
+        normal_(self.query_pos, std=0.01)
 
     def forward(
         self, 
