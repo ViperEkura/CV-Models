@@ -61,12 +61,10 @@ class SetCriterion(Module):
         )
         
         # 2. box loss
-        pred_bbox_permuted = pred_bbox[batch_idx, row_inds]
-        gt_bbox_permuted = gt_bbox[batch_idx, col_inds]
         valid_mask = gt_class_permuted.greater(0)
         valid_num = valid_mask.sum().clamp(min=1)
-        pred_bbox_permuted = pred_bbox_permuted[valid_mask]
-        gt_bbox_permuted = gt_bbox_permuted[valid_mask]
+        pred_bbox_permuted = pred_bbox[batch_idx, row_inds][valid_mask]
+        gt_bbox_permuted = gt_bbox[batch_idx, col_inds][valid_mask]
         bbox_loss = F.l1_loss(pred_bbox_permuted, gt_bbox_permuted, reduction="none").sum() / valid_num
         
         # 3 giou loss
