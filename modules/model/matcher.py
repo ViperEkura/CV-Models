@@ -17,7 +17,7 @@ def jonker_volgenant(cost_matrix: Tensor) -> Tuple[List[int], List[int]]:
             col_indices (List[int]): column indices of the optimal assignment
     """
     assert cost_matrix.ndim == 2
-    cost_matrix = cost_matrix.cpu().numpy().astype(np.float64) 
+    cost_matrix = cost_matrix.cpu().detach().numpy().astype(np.float64) 
     _, row_inds, _ = lap.lapjv(cost_matrix, extend_cost=True)
     row_indices, col_indices = [], []
     
@@ -85,7 +85,8 @@ class HungarianMatcher:
         return row_inds_cat, col_inds_cat
     
     def _compute_class_cost(self, pred_class: Tensor, gt_class: Tensor) -> Tensor:
-        pred_prob = pred_class.softmax(-1)                  # [num_queries, num_classes+1]
+        # fix cross_entropy -> softmax + nll_loss -> - log_softmax
+        pred_prob = pred_class.log_softmax(-1)              # [num_queries, num_classes+1]
         cost_class = -pred_prob[:, gt_class]                # [num_queries, num_gt_boxes]
         return cost_class
     
