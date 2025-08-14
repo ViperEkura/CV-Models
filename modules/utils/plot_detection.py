@@ -33,11 +33,17 @@ def plot_detection(
     
     # 修改：绘制筛选后的检测框（将归一化坐标转换为像素坐标）
     for box in pred_bbox:
-        # 将归一化坐标转换为像素坐标
-        x1 = box[0].item() * W
-        y1 = box[1].item() * H
-        x2 = box[2].item() * W
-        y2 = box[3].item() * H
+        # 解绑归一化坐标：将 xywh 转换为像素单位
+        x_center_norm, y_center_norm, w_norm, h_norm = box.tolist()
+        x_center = x_center_norm * W
+        y_center = y_center_norm * H
+        w = w_norm * W
+        h = h_norm * H
+
+        x1 = x_center - w / 2
+        y1 = y_center - h / 2
+        x2 = x_center + w / 2
+        y2 = y_center + h / 2
         
         width = x2 - x1
         height = y2 - y1
