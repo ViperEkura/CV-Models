@@ -32,7 +32,7 @@ def manual_match(pred_class, pred_bbox, gt_class, gt_bbox, alpha=1, beta=5, gamm
         cost_matrix = alpha * class_cost + beta * bbox_cost + gamma * giou_cost  # [Q, G]
 
         # 匈牙利算法求解最优匹配
-        r, c = jonker_volgenant(cost_matrix.cpu().detach().numpy())
+        r, c = jonker_volgenant(cost_matrix)
         row_inds.append(torch.tensor(r))
         col_inds.append(torch.tensor(c))
 
@@ -95,11 +95,11 @@ def test_matcher_against_manual():
 def test_jonker_volgenant():
     """测试Jonker-Volgenant算法实现"""
     # 创建一个简单的成本矩阵
-    cost_matrix = np.array([
+    cost_matrix = torch.tensor([
         [1, 2, 3],
         [4, 5, 6],
         [7, 8, 9]
-    ], dtype=np.float64)
+    ])
     
     row_indices, col_indices = jonker_volgenant(cost_matrix)
     

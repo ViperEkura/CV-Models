@@ -7,16 +7,17 @@ from typing import List, Tuple, Dict
 from modules.utils.box_ops import box_giou, xywh_to_xyxy
 
 
-def jonker_volgenant(cost_matrix: np.ndarray) -> Tuple[int, List[int], List[int]]:
+def jonker_volgenant(cost_matrix: Tensor) -> Tuple[List[int], List[int]]:
     """
     Args:
-        cost_matrix (np.ndarray): shape [num_queries, num_gt_boxes]
+        cost_matrix (Tensor): shape [num_queries, num_gt_boxes]
     Returns:
-        Tuple[int, np.ndarray, np.ndarray]:
-            row_indices (np.ndarray): row indices of the optimal assignment
-            col_indices (np.ndarray): column indices of the optimal assignment
+        Tuple[List[int], List[int]]:
+            row_indices (List[int]): row indices of the optimal assignment
+            col_indices (List[int]): column indices of the optimal assignment
     """
     assert cost_matrix.ndim == 2
+    cost_matrix = cost_matrix.cpu().numpy().astype(np.float64) 
     _, row_inds, _ = lap.lapjv(cost_matrix, extend_cost=True)
     row_indices, col_indices = [], []
     
@@ -72,7 +73,7 @@ class HungarianMatcher:
             cost_bbox = self._compute_bbox_cost(pred_bbox[i], gt_bbox_i)
             cost_giou = self._compute_giou_cost(pred_bbox[i], gt_bbox_i)
             C = self.cost_class * cost_class + self.cost_bbox * cost_bbox + self.cost_giou * cost_giou
-            C = C.reshape(pred_class.shape[1], -1).cpu().numpy().astype(np.float64)  # [num_queries, num_gt_boxes]
+            C = C.reshape(pred_class.shape[1], -1)   # [num_queries, num_gt_boxes]
 
             row_ind, col_ind = jonker_volgenant(C)
             row_inds.append(torch.tensor(row_ind).long())
