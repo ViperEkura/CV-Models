@@ -11,7 +11,8 @@ class SetCriterion(Module):
         self,
         num_classes: int,
         matcher: HungarianMatcher,
-        eos_coef: float = 0.1
+        eos_coef: float = 0.1,
+        class_weight: Tensor = None
     ):
         super().__init__()
         
@@ -19,7 +20,12 @@ class SetCriterion(Module):
         self.matcher = matcher
         self.weight_dict = matcher.get_cost_weight_dict()
         self.eos_coef = eos_coef
-        self.empty_weight = torch.ones(num_classes + 1)
+        
+        if class_weight is None:
+            self.empty_weight = torch.ones(self.num_classes + 1)
+        else:
+            self.empty_weight = class_weight
+            
         self.empty_weight[0] = eos_coef
         
     def forward(
@@ -47,7 +53,12 @@ class SetCriterion(Module):
         # 1. class loss
         pred_class_permuted = pred_class[batch_idx, row_inds]
         gt_class_permuted = gt_class[batch_idx, col_inds]
-        class_loss = F.cross_entropy(pred_class_permuted.flatten(0, 1), gt_class_permuted.flatten(), self.empty_weight)
+        
+        class_loss = F.cross_entropy(
+            pred_class_permuted.flatten(0, 1), 
+            gt_class_permuted.flatten(), 
+            self.empty_weight
+        )
         
         # 2. box loss
         pred_bbox_permuted = pred_bbox[batch_idx, row_inds]
@@ -59,7 +70,10 @@ class SetCriterion(Module):
         bbox_loss = F.l1_loss(pred_bbox_permuted, gt_bbox_permuted, reduction="none").sum() / valid_num
         
         # 3 giou loss
-        box_matrix = box_giou(xywh_to_xyxy(pred_bbox_permuted), xywh_to_xyxy(gt_bbox_permuted))
+        box_matrix = box_giou(
+            xywh_to_xyxy(pred_bbox_permuted), 
+            xywh_to_xyxy(gt_bbox_permuted)
+        )
         giou = torch.diagonal(box_matrix, dim1=-2, dim2=-1)
         giou_loss = torch.sum(1 - giou) / valid_num
         
