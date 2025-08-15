@@ -1,42 +1,40 @@
 import torch
 import numpy as np
-import torch.nn.functional as F
 import torchvision
 
+from torch import Tensor
 from modules.model.matcher import HungarianMatcher, jonker_volgenant
 from modules.utils.box_ops import box_giou
 
 
 
-def manual_match(pred_class, pred_bbox, gt_class, gt_bbox, alpha=1, beta=5, gamma=2):
-    B = pred_class.size(0)
+def match(
+    pred_class: Tensor, 
+    pred_bbox: Tensor, 
+    gt_class: Tensor, 
+    gt_bbox: Tensor, 
+    cost_class=1, 
+    cost_bbox=5, 
+    cost_giou=2
+):
+    bs = pred_class.shape[0]
     row_inds, col_inds = [], []
-
-    for i in range(B):
-        # 提取单样本数据
-        pc = pred_class[i]  # [Q, C]
-        pb = pred_bbox[i]   # [Q, 4]
-        gc = gt_class[i]    # [G]
-        gb = gt_bbox[i]     # [G, 4]
-
-        # 1. 分类代价：负的softmax概率（使用真实类别）
-        class_cost = -F.softmax(pc, dim=-1)[:, gc]  # [Q, G]
-
-        # 2. L1代价：预测框与真实框的L1距离
-        bbox_cost = torch.cdist(pb, gb, p=1)  # [Q, G]
-
-        # 3. GIoU代价：1 - GIoU
-        giou_cost = 1 - box_giou(pb, gb)  # [Q, G]
-
-        # 总代价矩阵
-        cost_matrix = alpha * class_cost + beta * bbox_cost + gamma * giou_cost  # [Q, G]
-
-        # 匈牙利算法求解最优匹配
-        r, c = jonker_volgenant(cost_matrix)
-        row_inds.append(torch.tensor(r))
-        col_inds.append(torch.tensor(c))
-
-    # 堆叠为 [B, min(Q, G)] 格式
+    
+    for i in range(bs):
+        # 1. class loss
+        pred_prob = torch.log_softmax(pred_class[i], dim=-1) # [Q, C+1]
+        loss_class = -pred_prob[:, gt_class[i]]  # [Q, G]
+        # l1_loss
+        loss_bbox = torch.cdist(pred_bbox[i], gt_bbox[i], p=1)  # [Q, G]
+        # 3. loss giou
+        giou = box_giou(pred_bbox[i], gt_bbox[i])  # [Q, G]
+        loss_giou = 1 - giou
+        C = cost_class * loss_class + cost_bbox * loss_bbox + cost_giou * loss_giou
+        row_ind, col_ind = jonker_volgenant(C)
+        
+        row_inds.append(torch.tensor(row_ind).long().to(device=pred_class.device))
+        col_inds.append(torch.tensor(col_ind).long().to(device=pred_class.device))
+    
     return torch.stack(row_inds), torch.stack(col_inds)
 
 
@@ -84,8 +82,7 @@ def test_matcher_against_manual():
     gt_bbox = torch.rand(batch_size, num_gt, 4)                       # [2,2,4]
     
     auto_row, auto_col = matcher.match(pred_class, pred_bbox, gt_class, gt_bbox)
-    manual_row, manual_col = manual_match(pred_class, pred_bbox, gt_class, gt_bbox, 
-                                         alpha=1, beta=5, gamma=2)
+    manual_row, manual_col = match(pred_class, pred_bbox, gt_class, gt_bbox, 1, 5, 2)
     
     assert torch.all(auto_row == manual_row), f"预测框索引不一致: {auto_row} vs {manual_col}"
     assert torch.all(auto_col == manual_col), f"真实框索引不一致: {auto_col} vs {manual_col}"

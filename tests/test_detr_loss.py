@@ -1,90 +1,83 @@
 import torch
-import torch.nn.functional as F
+from torch import Tensor
 from modules.model.matcher import HungarianMatcher, jonker_volgenant
 from modules.loss.detr_loss import SetCriterion
 from modules.utils.box_ops import box_giou
 
 
-def match(pred_class, pred_bbox, gt_class, gt_bbox, cost_class=1, cost_bbox=5, cost_giou=2):
-    """执行匈牙利匹配，返回匹配索引"""
-    bs, num_queries = pred_class.shape[:2]
-    indices = []
+def match(
+    pred_class: Tensor, 
+    pred_bbox: Tensor, 
+    gt_class: Tensor, 
+    gt_bbox: Tensor, 
+    cost_class=1, 
+    cost_bbox=5, 
+    cost_giou=2
+):
+    bs = pred_class.shape[0]
+    row_inds, col_inds = [], []
     
     for i in range(bs):
-        # 1. 计算分类成本 [num_queries, num_gts]
-        pred_prob = pred_class[i].softmax(-1)  # [Q, C+1]
+        # 1. class loss
+        pred_prob = torch.log_softmax(pred_class[i], dim=-1) # [Q, C+1]
         loss_class = -pred_prob[:, gt_class[i]]  # [Q, G]
-        
-        # 2. 计算L1距离成本 [num_queries, num_gts]
+        # l1_loss
         loss_bbox = torch.cdist(pred_bbox[i], gt_bbox[i], p=1)  # [Q, G]
+        # 3. loss giou
+        giou = box_giou(pred_bbox[i], gt_bbox[i])  # [Q, G]
+        loss_giou = 1 - giou
+        C = cost_class * loss_class + cost_bbox * loss_bbox + cost_giou * loss_giou
+        row_ind, col_ind = jonker_volgenant(C)
         
-        # 3. 计算GIoU成本 [num_queries, num_gts]
-        loss_giou = -box_giou(pred_bbox[i], gt_bbox[i])  # [Q, G]
-        
-        # 4. 加权总成本
-        C = cost_class * loss_class + \
-            cost_bbox * loss_bbox + \
-            cost_giou * loss_giou
-        
-        # 5. 使用匈牙利算法
-        indices.append(jonker_volgenant(C))
+        row_inds.append(torch.tensor(row_ind).long().to(device=pred_class.device))
+        col_inds.append(torch.tensor(col_ind).long().to(device=pred_class.device))
     
-    # 转换为张量格式
-    return [(torch.as_tensor(i, dtype=torch.int64), 
-            torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
+    return torch.stack(row_inds), torch.stack(col_inds)
 
 
-def manual_detr_loss(pred_class, pred_bbox, gt_class, gt_bbox):
-    """修正后的DETR损失实现"""
-    bs, num_queries = pred_class.shape[:2]
-    num_gts = gt_bbox.shape[1]
+def manual_detr_loss(
+    pred_class: Tensor, 
+    pred_bbox: Tensor, 
+    gt_class: Tensor, 
+    gt_bbox: Tensor, 
+    cost_class=1, 
+    cost_bbox=5, 
+    cost_giou=2
+):
+    bs = pred_class.shape[0]
     
-    # 1. 匈牙利匹配
-    indices = match(pred_class, pred_bbox, gt_class, gt_bbox)
+    # 进行匈牙利匹配
+    row_inds, col_inds = match(pred_class, pred_bbox, gt_class, gt_bbox, 
+                               cost_class, cost_bbox, cost_giou)
     
-    # 2. 初始化目标张量
-    target_classes = torch.full((bs, num_queries), 0, dtype=torch.long, device=pred_class.device)
+    # 计算分类损失
+    class_loss = 0.0
+    bbox_loss = 0.0
+    giou_loss = 0.0
     
-    # 3. 填充匹配的真实类别
-    for batch_idx, (query_idx, gt_idx) in enumerate(indices):
-        target_classes[batch_idx, query_idx] = gt_class[batch_idx, gt_idx]
-    
-    # 4. 分类损失 (所有预测框)
-    pred_class = pred_class.flatten(0, 1)  # [B*Q, C]
-    target_classes = target_classes.flatten()  # [B*Q]
-    loss_ce = F.cross_entropy(pred_class, target_classes, reduction='none')
-    
-    # 5. 边界框损失 (仅匹配的预测框)
-    loss_bbox = torch.tensor(0., device=pred_bbox.device)
-    loss_giou = torch.tensor(0., device=pred_bbox.device)
-    num_matches = 0
-    
-    for batch_idx, (query_idx, gt_idx) in enumerate(indices):
-        if len(query_idx) == 0:
-            continue
-            
-        # 提取匹配的预测框和真实框
-        matched_preds = pred_bbox[batch_idx, query_idx]
-        matched_gts = gt_bbox[batch_idx, gt_idx]
+    for i in range(bs):
+        # 获取匹配结果
+        matched_row = row_inds[i]
+        matched_col = col_inds[i]
         
-        # L1损失
-        loss_bbox += F.l1_loss(matched_preds, matched_gts, reduction='sum')
+        # 分类损失计算
+        pred_prob = torch.log_softmax(pred_class[i], dim=-1)
+        matched_class_loss = -pred_prob[matched_row, gt_class[i][matched_col]].mean()
+        class_loss += matched_class_loss
         
-        # GIoU损失
-        giou = box_giou(matched_preds, matched_gts)
-        loss_giou += (1 - giou.diag()).sum()
+        # 边界框损失计算 (L1损失)
+        matched_pred_bbox = pred_bbox[i][matched_row]
+        matched_gt_bbox = gt_bbox[i][matched_col]
+        bbox_loss += torch.abs(matched_pred_bbox - matched_gt_bbox).mean()
         
-        num_matches += len(query_idx)
+        # GIoU损失计算
+        giou = box_giou(matched_pred_bbox, matched_gt_bbox)
+        giou_loss += (1 - giou).mean()
     
-    # 6. 归一化边界框损失
-    if num_matches > 0:
-        loss_bbox /= num_matches
-        loss_giou /= num_matches
-    
-    # 7. 加权求和 (DETR标准权重)
-    total_loss = loss_ce.mean() + 5.0 * loss_bbox + 2.0 * loss_giou
-    
+    # 平均批次损失
+    total_loss = (cost_class * class_loss + cost_bbox * bbox_loss + cost_giou * giou_loss) / bs
     return total_loss
+
 
 def test_detr_loss_initialization():
     """测试SetCriterion初始化"""
@@ -165,5 +158,3 @@ def test_detr_loss_with_manual():
     manual_loss = manual_detr_loss(pred_class, pred_bbox, gt_class, gt_bbox)
     
     assert torch.allclose(loss, manual_loss, atol=1e-4)
-
-    
