@@ -7,6 +7,29 @@ from torch.nn.init import normal_
 from modules.model.resnet import ResNet
 
 
+class PositionEmbeddingLearned(nn.Module):
+    def __init__(self, hidden_dim):
+        super().__init__()
+        self.row_embed = nn.Parameter(torch.empty(50, hidden_dim // 2))   # 50x50
+        self.col_embed = nn.Parameter(torch.empty(50, hidden_dim // 2))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.uniform_(self.row_embed)
+        nn.init.uniform_(self.col_embed)
+
+    def forward(self, x: Tensor):
+        B = x.shape[0]
+        H, W = x.shape[-2:]
+        x_emb = self.col_embed[:H]
+        y_emb = self.row_embed[:W]
+        pos = torch.cat([
+            x_emb.unsqueeze(0).repeat(H, 1, 1),
+            y_emb.unsqueeze(1).repeat(1, W, 1),
+        ], dim=-1).permute(2, 0, 1).unsqueeze(0).repeat(B, 1, 1, 1)
+        return pos + x
+
+
 class DETR(nn.Module):
     def __init__(
         self, 
@@ -31,14 +54,11 @@ class DETR(nn.Module):
         self.linear_class = nn.Linear(hidden_dim, num_classes + 1)          # +1 for background
         self.linear_bbox = nn.Linear(hidden_dim, 4)                         # bbox(x,y,w,h)
         self.query_pos = nn.Parameter(torch.empty(num_queries, hidden_dim))
-        self.row_embed = nn.Parameter(torch.empty(50, hidden_dim // 2))      # 50x50
-        self.col_embed = nn.Parameter(torch.empty(50, hidden_dim // 2))
+        self.postion_embedding = PositionEmbeddingLearned(hidden_dim)
         self.num_queries = num_queries
         self.init_parameters()
     
     def init_parameters(self):
-        normal_(self.row_embed, std=0.01)
-        normal_(self.col_embed, std=0.01)
         normal_(self.query_pos, std=0.01)
 
     def forward(
@@ -52,18 +72,12 @@ class DETR(nn.Module):
         
         x: Tensor = self.backbone(inputs)       # [batch_size, 2048, H, W]
         h: Tensor = self.conv(x)                # [batch_size, hidden_dim, H, W]
-
-        H, W = h.shape[-2:]
         B = h.shape[0]
         
-        pos = torch.cat([
-            self.col_embed[:W].unsqueeze(0).repeat(H, 1, 1),
-            self.row_embed[:H].unsqueeze(1).repeat(1, W, 1),
-        ], dim=-1).flatten(0, 1).unsqueeze(0)   # [1, H*W, hidden_dim]
         
-        h = h.flatten(2).transpose(1, 2)        # [batch_size, H*W, hidden_dim]
+        embeded = self.postion_embedding(h).flatten(2).transpose(1, 2)        # [batch_size, H*W, hidden_dim]
         h = self.transformer(
-            src=pos + h,                                                # [batch_size, H*W, hidden_dim]
+            src=embeded,                                                # [batch_size, H*W, hidden_dim]
             tgt=self.query_pos.unsqueeze(0).repeat(B, 1, 1),            # [batch_size, num_queries, hidden_dim]
             src_is_causal=False,
             tgt_is_causal=False,

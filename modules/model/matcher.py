@@ -67,6 +67,9 @@ class HungarianMatcher:
         device = pred_class.device
         row_inds, col_inds = [], []
         
+        pred_bbox = xywh_to_xyxy(pred_bbox)
+        gt_bbox = xywh_to_xyxy(gt_bbox)
+        
         for i in range(B):
             cost_class = self._compute_class_cost(pred_class[i], gt_class[i])
             cost_bbox = self._compute_bbox_cost(pred_bbox[i], gt_bbox[i])
@@ -93,7 +96,7 @@ class HungarianMatcher:
         return cost_bbox
     
     def _compute_giou_cost(self, pred_bbox: Tensor, gt_bbox: Tensor) -> Tensor:
-        giou = box_giou(xywh_to_xyxy(pred_bbox), xywh_to_xyxy(gt_bbox)) # [Q, G]
+        giou = box_giou(pred_bbox, gt_bbox) # [Q, G]
         cost_giou = 1 - giou
         return cost_giou
 
