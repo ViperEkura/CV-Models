@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from torch import Tensor
 from typing import Tuple
-from torch.nn.init import normal_
 from modules.model.resnet import ResNet
 
 
@@ -26,8 +26,21 @@ class PositionEmbeddingLearned(nn.Module):
         pos = torch.cat([
             x_emb.unsqueeze(0).repeat(H, 1, 1),
             y_emb.unsqueeze(1).repeat(1, W, 1),
-        ], dim=-1).permute(2, 0, 1).unsqueeze(0).repeat(B, 1, 1, 1)
+        ], dim=-1).permute(2, 0, 1).unsqueeze(0).repeat(B, 1, 1, 1) # [batch_size, hidden_dim, H, W]
         return pos + x
+
+
+class MLP(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers):
+        super().__init__()
+        self.num_layers = num_layers
+        h = [hidden_dim] * (num_layers - 1)
+        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim] + h, h + [output_dim]))
+
+    def forward(self, x):
+        for i, layer in enumerate(self.layers):
+            x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
+        return x
 
 
 class DETR(nn.Module):
@@ -48,18 +61,17 @@ class DETR(nn.Module):
             d_model=hidden_dim,
             nhead=nheads,
             batch_first=True,
+            norm_first=True,
+            bias=False,
             num_encoder_layers=num_encoder_layers,
             num_decoder_layers=num_decoder_layers,
         )
-        self.linear_class = nn.Linear(hidden_dim, num_classes + 1)          # +1 for background
-        self.linear_bbox = nn.Linear(hidden_dim, 4)                         # bbox(x,y,w,h)
+        self.class_embed = nn.Linear(hidden_dim, num_classes + 1)           # +1 for background
+        self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)                 # bbox(x,y,w,h)
+        self.postion_embed = PositionEmbeddingLearned(hidden_dim)
         self.query_pos = nn.Parameter(torch.empty(num_queries, hidden_dim))
-        self.postion_embedding = PositionEmbeddingLearned(hidden_dim)
-        self.num_queries = num_queries
-        self.init_parameters()
-    
-    def init_parameters(self):
-        normal_(self.query_pos, std=0.01)
+        nn.init.uniform_(self.query_pos)
+
 
     def forward(
         self, 
@@ -70,20 +82,20 @@ class DETR(nn.Module):
             inputs = inputs.unsqueeze(0)
         assert inputs.ndim == 4
         
-        x: Tensor = self.backbone(inputs)       # [batch_size, 2048, H, W]
-        h: Tensor = self.conv(x)                # [batch_size, hidden_dim, H, W]
-        B = h.shape[0]
+        x = self.backbone(inputs)       # [batch_size, 2048, H, W]
+        h = self.conv(x)                # [batch_size, hidden_dim, H, W]
         
-        
-        embeded = self.postion_embedding(h).flatten(2).transpose(1, 2)        # [batch_size, H*W, hidden_dim]
+        embeded = torch.flatten(self.postion_embed(h),2).transpose(1, 2)        # [batch_size, H*W, hidden_dim]
+        query_pos = self.query_pos.unsqueeze(0).repeat(embeded.size(0), 1, 1)
         h = self.transformer(
             src=embeded,                                                # [batch_size, H*W, hidden_dim]
-            tgt=self.query_pos.unsqueeze(0).repeat(B, 1, 1),            # [batch_size, num_queries, hidden_dim]
+            tgt=query_pos,                                              # [batch_size, num_queries, hidden_dim]
             src_is_causal=False,
             tgt_is_causal=False,
+            memory_is_causal=False,
         )                                                               # output: [batch_size, num_queries, hidden_dim]
         
-        pred_class = self.linear_class(h)                               # [batch_size, num_queries, num_classes+1]
-        pred_bbox = torch.sigmoid(self.linear_bbox(h))                  # [batch_size, num_queries, 4]
+        pred_class = self.class_embed(h)                               # [batch_size, num_queries, num_classes+1]
+        pred_bbox = torch.sigmoid(self.bbox_embed(h))                  # [batch_size, num_queries, 4]
 
         return pred_class, pred_bbox
