@@ -1,4 +1,6 @@
 import torch
+import torch.nn.functional as F
+
 from torch import Tensor
 from modules.model.matcher import HungarianMatcher, jonker_volgenant
 from modules.loss.detr_loss import SetCriterion
@@ -12,13 +14,14 @@ def manual_detr_loss(
     gt_bbox: Tensor, 
     cost_class=1, 
     cost_bbox=5, 
-    cost_giou=2
+    cost_giou=2,
+    eos_coef=0.1,
 ):
     bs = pred_class.shape[0]
     
     # 进行匈牙利匹配
     matcher = HungarianMatcher(cost_class, cost_bbox, cost_giou)
-    row_inds, col_inds = matcher.match(pred_class, pred_bbox, gt_class, gt_bbox, )
+    row_inds, col_inds = matcher.match(pred_class, pred_bbox, gt_class, gt_bbox)
     
     # 计算分类损失
     class_loss = 0.0
@@ -31,8 +34,16 @@ def manual_detr_loss(
         matched_col = col_inds[i]
         
         # 分类损失计算
-        pred_prob = torch.log_softmax(pred_class[i], dim=-1)
-        matched_class_loss = -pred_prob[matched_row, gt_class[i][matched_col]].mean()
+        target_class = torch.zeros(pred_class.size(1), dtype=torch.long)
+        target_class[matched_row] = gt_class[i][matched_col]
+        class_weight = torch.ones_like(target_class)
+        class_weight[0] = eos_coef
+        matched_class_loss = F.cross_entropy(
+            pred_class[i],
+            target_class,
+            weight=class_weight,
+            reduction="mean"
+        )
         class_loss += matched_class_loss
         
         # 边界框损失计算 (L1损失)

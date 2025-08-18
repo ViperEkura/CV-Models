@@ -26,13 +26,13 @@ if __name__ == "__main__":
             'params': [p for n, p in model.named_parameters() 
                        if not n.find("backbone") and p.requires_grad],
             'lr': 1e-3,
-            'weight_decay': 1e-3
+            'weight_decay': 1e-2
         },
         {
             'params': [p for n, p in model.named_parameters() 
                        if n.find("backbone") and p.requires_grad],
             'lr': 1e-4,
-            'weight_decay': 1e-3
+            'weight_decay': 1e-2
         }
     ]
 
@@ -40,5 +40,9 @@ if __name__ == "__main__":
     matcher = HungarianMatcher(1, 5, 2)
     criterion = SetCriterion(num_classes=100, matcher=matcher, eos_coef=0.1)
     
-    train_fn(model, train_loader, optimizer, criterion, 1, device, 4)
-    torch.save(model.state_dict(), 'detr.pth')
+    avg_loss = []
+    for i in range(1, 2):
+        loss = train_fn(model, train_loader, optimizer, criterion, i, device, 4)
+        avg_loss.append(loss)
+    
+    torch.save(model.state_dict(), 'detr.pth') 

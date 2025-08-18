@@ -15,19 +15,10 @@ def collate_fn_pad(batch):
     images = [item[0] for item in batch]
     labels = [item[1] for item in batch]
     boxes  = [item[2] for item in batch]
-
+    
     images = torch.stack(images, dim=0)
-
-    max_boxes = max(len(box) for box in boxes)
-
-    padded_boxes = torch.zeros((len(batch), max_boxes, 4), dtype=torch.float32)
-    padded_labels = torch.full((len(batch), max_boxes), 0, dtype=torch.long)
-
-    for i, (box, lab) in enumerate(zip(boxes, labels)):
-        padded_boxes[i, :len(box)] = box
-        padded_labels[i, :len(lab)] = lab
-
-    return images, padded_labels, padded_boxes
+    
+    return images, labels, boxes
 
 
 class COCODataset(Dataset):
@@ -36,12 +27,14 @@ class COCODataset(Dataset):
         image_dir: str,
         anno_dir: str,
         image_size: Tuple[int, int] = (224, 224),
-        mode: str = 'train'
+        mode: str = 'train',
+        device="cuda"
     ):
         self.image_dir = image_dir
         self.anno_dir = anno_dir
         self.image_size = image_size
         self.mode = mode
+        self.device = device
         
         self.transform = transforms.Compose([
             transforms.ToTensor(),
@@ -100,6 +93,11 @@ class COCODataset(Dataset):
         
         image = self.transform(image)
         
+        # Move tensors to specified device
+        image = image.to(self.device)
+        boxes = boxes.to(self.device)
+        labels = labels.to(self.device)
+        
         return image, labels, boxes
     
 
@@ -109,11 +107,13 @@ class VOCDataset(Dataset):
         self, 
         root_dir, 
         split='train', 
-        default_image_size=(224, 224)
+        default_image_size=(224, 224),
+        device="cuda"
     ):
         self.root_dir = root_dir
         self.split = split
         self.default_image_size = default_image_size
+        self.device = device
         
         self.transform = transforms.Compose([
             transforms.Resize(self.default_image_size),
@@ -153,9 +153,14 @@ class VOCDataset(Dataset):
         target = self._load_target(image_id)
         image = self.transform(image)
 
+        # Move tensors to specified device
+        image = image.to(self.device)
+        target["labels"] = target["labels"].to(self.device)
+        target["boxes"] = target["boxes"].to(self.device)
+
         return image, target["labels"], target["boxes"]
 
-    def _load_image(self, image_id):
+    def _load_image(self, image_id) -> Tensor:
         image_path = os.path.join(self.image_dir, f'{image_id}.jpg')
         image = Image.open(image_path).convert('RGB')
         return image
@@ -194,7 +199,7 @@ class VOCDataset(Dataset):
 
         target = {
             'boxes': torch.as_tensor(boxes, dtype=torch.float32),
-            'labels': torch.as_tensor(labels, dtype=torch.int32),
+            'labels': torch.as_tensor(labels, dtype=torch.int64),
         }
 
         return target

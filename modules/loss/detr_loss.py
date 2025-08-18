@@ -39,46 +39,62 @@ class SetCriterion(Module):
         Args:
             pred_class (Tensor): shape [B, Q, C + 1]
             pred_bbox (Tensor): shape [B, Q, 4]
-            gt_class (Tensor): shape [B, G]
-            gt_bbox (Tensor): shape [B, G, 4]
+            gt_class (List[Tensor]): length = B
+            gt_bbox (List[Tensor]): length = B
         Returns:
             Tensor: total loss
         """
         
         B = pred_class.size(0)
         self.empty_weight = self.empty_weight.to(pred_class.device)
-        row_inds, col_inds = self.matcher.match(pred_class, pred_bbox, gt_class, gt_bbox)   # inds: [B, min(G, Q)]
-        batch_idx = torch.arange(B, device=pred_class.device).view(-1, 1).expand_as(row_inds)
-
-        # 1. class loss
-        pred_class_permuted = pred_class[batch_idx, row_inds]
-        gt_class_permuted = gt_class[batch_idx, col_inds]
+        pred_class_list = [cls.squeeze(0) for cls in pred_class.split(1, dim=0)]
+        pred_bbox_list = [box.squeeze(0) for box in pred_bbox.split(1, dim=0)]
+        row_inds, col_inds = self.matcher.match(pred_class_list, pred_bbox_list, gt_class, gt_bbox)
         
-        class_loss = F.cross_entropy(
-            pred_class_permuted.flatten(0, 1), 
-            gt_class_permuted.flatten(), 
-            self.empty_weight
-        )
+        cls_losses, bbox_losses, giou_losses = 0, 0, 0 
         
-        # 2. box loss
-        valid_mask = gt_class_permuted.greater(0)
-        valid_num = valid_mask.sum().clamp(min=1)
-        pred_bbox_permuted = pred_bbox[batch_idx, row_inds][valid_mask]
-        gt_bbox_permuted = gt_bbox[batch_idx, col_inds][valid_mask]
-        bbox_loss = F.l1_loss(pred_bbox_permuted, gt_bbox_permuted, reduction="none").sum() / valid_num
-        
-        # 3 giou loss
-        box_matrix = box_giou(
-            xywh_to_xyxy(pred_bbox_permuted), 
-            xywh_to_xyxy(gt_bbox_permuted)
-        )
-        giou = torch.diagonal(box_matrix, dim1=-2, dim2=-1)
-        giou_loss = torch.sum(1 - giou) / valid_num
+        for b in range(B):
+            pred_cls, pred_box = pred_class_list[b], pred_bbox_list[b]
+            gt_cls, gt_box = gt_class[b], gt_bbox[b]
+            row_ind, col_ind = row_inds[b], col_inds[b]
+            
+            target_cls = torch.zeros(
+                *pred_cls.shape[:-1], 
+                dtype=gt_cls.dtype, 
+                device=gt_cls.device
+            ) # [Q]
+            target_cls[row_ind] = gt_cls[col_ind]
+            
+            cls_loss = F.cross_entropy(
+                pred_cls, 
+                target_cls, 
+                weight=self.empty_weight, 
+                reduction='mean'
+            )
+            
+            pred_box_permuted = pred_box[row_ind] # [Q, 4]
+            gt_box_permuted = gt_box[col_ind]     # [G, 4]
+            
+            box_loss = F.l1_loss(
+                pred_box_permuted, 
+                gt_box_permuted, 
+                reduction='sum'
+            ) / len(row_ind)
+            
+            pred_box_permuted = xywh_to_xyxy(pred_box_permuted)
+            gt_box_permuted = xywh_to_xyxy(gt_box_permuted)
+            giou = box_giou(pred_box_permuted, gt_box_permuted).diag()
+            giou_loss = torch.mean(1 - giou)
+            
+            cls_losses += cls_loss
+            bbox_losses += box_loss
+            giou_losses += giou_loss
         
         total_loss = (
-            self.weight_dict["class"] * class_loss +
-            self.weight_dict["bbox"] * bbox_loss +
-            self.weight_dict["giou"] * giou_loss
-        )
-
+            self.weight_dict["class"] * cls_losses +
+            self.weight_dict["bbox"] * bbox_losses +
+            self.weight_dict["giou"] * giou_losses
+        ) / B
+        
         return total_loss
+    

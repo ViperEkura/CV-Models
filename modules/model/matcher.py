@@ -9,12 +9,15 @@ from modules.utils.box_ops import box_giou, xywh_to_xyxy
 
 def jonker_volgenant(cost_matrix: Tensor) -> Tuple[List[int], List[int]]:
     """
+    Solve linear assignment problem using Jonker-Volgenant algorithm
+    
     Args:
-        cost_matrix (Tensor): shape [Q, G]
+        cost_matrix (Tensor): Cost matrix with shape [Q, G] where Q is number of predictions and G is number of ground truths
+        
     Returns:
-        Tuple[List[int], List[int]]:
-            row_indices (List[int]): row indices of the optimal assignment
-            col_indices (List[int]): column indices of the optimal assignment
+        indicates(Tuple[List[int], List[int]]):
+            - row_indices (List[int]): Row indices of the optimal assignment (predictions)
+            - col_indices (List[int]): Column indices of the optimal assignment (ground truths)
     """
     assert cost_matrix.ndim == 2
     cost_matrix = cost_matrix.cpu().detach().numpy().astype(np.float64) 
@@ -38,6 +41,15 @@ class HungarianMatcher:
         cost_giou: float = 1.0,
         background_class_index: int = 0
     ):
+        """
+        Initialize Hungarian matcher for bipartite matching between predictions and ground truths
+        
+        Args:
+            cost_class (float): Weight for classification cost
+            cost_bbox (float): Weight for bounding box cost (L1 distance)
+            cost_giou (float): Weight for GIoU cost
+            background_class_index (int): Index of background class
+        """
         self.cost_class = cost_class 
         self.cost_bbox = cost_bbox 
         self.cost_giou = cost_giou
@@ -46,52 +58,57 @@ class HungarianMatcher:
     @torch.no_grad()
     def match(
         self, 
-        pred_class: Tensor, 
-        pred_bbox: Tensor, 
-        gt_class: Tensor, 
-        gt_bbox: Tensor
-    ) -> Tuple[Tensor, Tensor]:
-        """
+        pred_class: List[Tensor], 
+        pred_bbox: List[Tensor], 
+        gt_class: List[Tensor], 
+        gt_bbox: List[Tensor]
+    ) -> Tuple[List[Tensor], List[Tensor]]:
+        """Performs bipartite matching between predictions and ground truths for a batch.
+
         Args:
-            pred_class (Tensor): shape [B, Q, C + 1]
-            pred_bbox (Tensor): shape [B, Q, 4]
-            gt_class (Tensor): shape [B, G]
-            gt_bbox (Tensor): shape [B, G, 4]
+            pred_class (List[Tensor]): Predicted class logits for each sample in batch.
+                Shape: [num_queries, num_classes].
+            pred_bbox (List[Tensor]): Predicted bounding boxes in [cx, cy, w, h] format.
+                Shape: [num_queries, 4].
+            gt_class (List[Tensor]): Ground truth class indices (0-based).
+                Shape: [num_gt_boxes].
+            gt_bbox (List[Tensor]): Ground truth boxes in [cx, cy, w, h] format.
+                Shape: [num_gt_boxes, 4].
+
         Returns:
-            Tuple[Tensor, Tensor]: 
-                row_inds (Tensor): shape [B, Q],  
-                col_inds (Tensor): shape [B, G]
+            indicates (Tuple[List[Tensor], List[Tensor]]):
+                - row_inds: Indices of matched predictions (from queries) for each sample.
+                    Length = batch size.
+                - col_inds: Indices of matched ground truths for each sample.
+                    Length = batch size.
         """
         
-        B = pred_class.size(0)
-        device = pred_class.device
+        B = len(pred_class)
         row_inds, col_inds = [], []
         
-        pred_bbox = xywh_to_xyxy(pred_bbox)
-        gt_bbox = xywh_to_xyxy(gt_bbox)
+        pred_bbox = [xywh_to_xyxy(bbox) for bbox in pred_bbox]
+        gt_bbox = [xywh_to_xyxy(bbox) for bbox in gt_bbox] 
         
         for i in range(B):
+            device = pred_class[i].device
             cost_class = self._compute_class_cost(pred_class[i], gt_class[i])
             cost_bbox = self._compute_bbox_cost(pred_bbox[i], gt_bbox[i])
             cost_giou = self._compute_giou_cost(pred_bbox[i], gt_bbox[i])
             C = self.cost_class * cost_class + self.cost_bbox * cost_bbox + self.cost_giou * cost_giou
 
             row_ind, col_ind = jonker_volgenant(C)
-            row_inds.append(torch.tensor(row_ind).long())
-            col_inds.append(torch.tensor(col_ind).long())
+            row_inds.append(torch.tensor(row_ind).long().to(device=device))
+            col_inds.append(torch.tensor(col_ind).long().to(device=device))
         
-        row_inds_cat = torch.stack(row_inds).to(device=device) # [B, min(Q, G)]
-        col_inds_cat = torch.stack(col_inds).to(device=device) # [B, min(Q, G)]
-        
-        return row_inds_cat, col_inds_cat
+        return row_inds, col_inds
     
     def _compute_class_cost(self, pred_class: Tensor, gt_class: Tensor) -> Tensor:
         # fix cross_entropy -> softmax + nll_loss -> - log_softmax
-        pred_prob = pred_class.log_softmax(-1)              # [Q, C+1]
-        cost_class = -pred_prob[:, gt_class]                # [Q, G]
+        pred_prob = pred_class.softmax(-1)                  # [Q, C+1]
+        cost_class = -pred_prob[:, gt_class]              # [Q, G]
         return cost_class
     
-    def _compute_bbox_cost(self, pred_bbox, gt_bbox) -> Tensor:
+    def _compute_bbox_cost(self, pred_bbox: Tensor, gt_bbox: Tensor) -> Tensor:
         cost_bbox = torch.cdist(pred_bbox, gt_bbox, p=1) # [Q, G]
         return cost_bbox
     

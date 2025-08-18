@@ -21,8 +21,6 @@ def train_fn(
     loss_list = []
     for batch_idx, (img, label, box) in enumerate(train_loader):
         img = img.to(device)
-        label = label.to(device)
-        box = box.to(device)
         
         pred_class, pred_bbox = model(img)
         loss = criterion(pred_class, pred_bbox, label, box)
@@ -53,8 +51,6 @@ def test_fn(
     loss_list = []
     for batch_idx, (img, label, box) in enumerate(test_loader):
         img = img.to(device)
-        label = label.to(device)
-        box = box.to(device)
         
         pred_class, pred_bbox = model(img)
         loss = criterion(pred_class, pred_bbox, label, box)
