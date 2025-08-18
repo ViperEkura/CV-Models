@@ -99,3 +99,18 @@ class DETR(nn.Module):
         pred_bbox = torch.sigmoid(self.bbox_embed(h))                  # [batch_size, num_queries, 4]
 
         return pred_class, pred_bbox
+
+
+class PostProcess(nn.Module):
+    
+    @staticmethod
+    def process(pred_class: Tensor, pred_bbox: Tensor, threshold: float = 0.5) -> Tensor:
+        scores, labels = pred_class.max(dim=-1)
+        keep = scores > threshold
+        valid_detections = (labels > 0) & keep
+        
+        selected_scores = scores[valid_detections]
+        selected_labels = labels[valid_detections]
+        selected_bbox = pred_bbox[valid_detections]
+
+        return selected_scores, selected_labels, selected_bbox
