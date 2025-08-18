@@ -10,6 +10,7 @@ def plot_detection(
     labels: Tensor,
     scores: Tensor,
     class_names: List[str],
+    threshold: float = 0.5,
     figsize: Tuple[int, int] = (10, 10),
     fontsize: int = 12,
     save_path: str = None,
@@ -24,7 +25,7 @@ def plot_detection(
     labels = labels.cpu().numpy()
     scores = scores.cpu().numpy()
 
-    inds = scores > 0.5
+    inds = scores > threshold
     boxes = boxes[inds]
     labels = labels[inds]
     scores = scores[inds]
