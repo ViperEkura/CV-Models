@@ -84,6 +84,25 @@ def box_enclose_area(
 
     return w * h
 
+def box_iou(
+    boxes1: Tensor, 
+    boxes2: Tensor,
+    epsilon:float = 1e-6
+) -> Tensor:
+    """
+    Args:
+        boxes1 (Tensor): shape [..., num_queries, 4]
+        boxes2 (Tensor): shape [..., num_gt_boxes, 4]
+    Returns:
+        Tensor: shape [..., num_queries, num_gt_boxes]
+    """
+    inter = box_intersection(boxes1, boxes2)
+    union = box_union(boxes1, boxes2)
+    iou = inter / (union + epsilon)
+    
+    return iou.clamp(min=0, max=1)
+    
+
 def box_giou(
     boxes1: Tensor, 
     boxes2: Tensor,
