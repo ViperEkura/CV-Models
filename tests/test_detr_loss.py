@@ -5,36 +5,6 @@ from modules.loss.detr_loss import SetCriterion
 from modules.utils.box_ops import box_giou
 
 
-def match(
-    pred_class: Tensor, 
-    pred_bbox: Tensor, 
-    gt_class: Tensor, 
-    gt_bbox: Tensor, 
-    cost_class=1, 
-    cost_bbox=5, 
-    cost_giou=2
-):
-    bs = pred_class.shape[0]
-    row_inds, col_inds = [], []
-    
-    for i in range(bs):
-        # 1. class loss
-        pred_prob = torch.log_softmax(pred_class[i], dim=-1) # [Q, C+1]
-        loss_class = -pred_prob[:, gt_class[i]]  # [Q, G]
-        # l1_loss
-        loss_bbox = torch.cdist(pred_bbox[i], gt_bbox[i], p=1)  # [Q, G]
-        # 3. loss giou
-        giou = box_giou(pred_bbox[i], gt_bbox[i])  # [Q, G]
-        loss_giou = 1 - giou
-        C = cost_class * loss_class + cost_bbox * loss_bbox + cost_giou * loss_giou
-        row_ind, col_ind = jonker_volgenant(C)
-        
-        row_inds.append(torch.tensor(row_ind).long().to(device=pred_class.device))
-        col_inds.append(torch.tensor(col_ind).long().to(device=pred_class.device))
-    
-    return torch.stack(row_inds), torch.stack(col_inds)
-
-
 def manual_detr_loss(
     pred_class: Tensor, 
     pred_bbox: Tensor, 
@@ -47,8 +17,8 @@ def manual_detr_loss(
     bs = pred_class.shape[0]
     
     # 进行匈牙利匹配
-    row_inds, col_inds = match(pred_class, pred_bbox, gt_class, gt_bbox, 
-                               cost_class, cost_bbox, cost_giou)
+    matcher = HungarianMatcher(cost_class, cost_bbox, cost_giou)
+    row_inds, col_inds = matcher.match(pred_class, pred_bbox, gt_class, gt_bbox, )
     
     # 计算分类损失
     class_loss = 0.0

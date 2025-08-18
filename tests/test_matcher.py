@@ -70,7 +70,7 @@ def test_matcher_against_manual():
     # 创建随机测试数据
     batch_size = 2
     num_queries = 3
-    num_classes = 2  # 修改为2，确保pred_class输出维度为3（2+1）
+    num_classes = 2 
     num_gt = 2
     
     # 随机生成预测数据
@@ -84,9 +84,8 @@ def test_matcher_against_manual():
     auto_row, auto_col = matcher.match(pred_class, pred_bbox, gt_class, gt_bbox)
     manual_row, manual_col = match(pred_class, pred_bbox, gt_class, gt_bbox, 1, 5, 2)
     
-    assert torch.all(auto_row == manual_row), f"预测框索引不一致: {auto_row} vs {manual_col}"
-    assert torch.all(auto_col == manual_col), f"真实框索引不一致: {auto_col} vs {manual_col}"
-    print("自动匹配与手动计算结果一致")
+    assert torch.all(auto_row == manual_row)
+    assert torch.all(auto_col == manual_col)
 
 
 def test_jonker_volgenant():
@@ -99,6 +98,7 @@ def test_jonker_volgenant():
     ])
     
     row_indices, col_indices = jonker_volgenant(cost_matrix)
+    assert len(row_indices) == len(col_indices)
     
 
 
