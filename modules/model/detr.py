@@ -61,8 +61,6 @@ class DETR(nn.Module):
             d_model=hidden_dim,
             nhead=nheads,
             batch_first=True,
-            norm_first=True,
-            bias=False,
             num_encoder_layers=num_encoder_layers,
             num_decoder_layers=num_decoder_layers,
         )
