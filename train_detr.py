@@ -25,20 +25,20 @@ if __name__ == "__main__":
         {
             'params': [p for n, p in model.named_parameters() 
                        if not n.find("backbone") and p.requires_grad],
-            'lr': 1e-3,
-            'weight_decay': 1e-2
+            'lr': 1e-4,
+            'weight_decay': 1e-3
         },
         {
             'params': [p for n, p in model.named_parameters() 
                        if n.find("backbone") and p.requires_grad],
-            'lr': 1e-4,
-            'weight_decay': 1e-2
+            'lr': 1e-3,
+            'weight_decay': 1e-3
         }
     ]
 
     optimizer = optim.AdamW(param_groups)
     matcher = HungarianMatcher(1, 5, 2)
-    criterion = SetCriterion(num_classes=100, matcher=matcher, eos_coef=0.1)
+    criterion = SetCriterion(num_classes=100, matcher=matcher, eos_coef=0.01)
     
     avg_loss = []
     for i in range(1, 2):

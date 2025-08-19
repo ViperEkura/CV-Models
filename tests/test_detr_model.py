@@ -40,7 +40,7 @@ def test_forward_pass(detr_model, sample_input):
     assert isinstance(pred_class, torch.Tensor)
     assert isinstance(pred_bbox, torch.Tensor)
     assert torch.all( pred_bbox > 0)
-    assert torch.all(pred_class.isnan() | pred_class.isnan())
+    assert torch.all(~(pred_class.isnan() | pred_class.isnan()))
     
     batch_size = sample_input.shape[0]
 
