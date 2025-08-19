@@ -34,7 +34,6 @@
 │
 ├───loss
 │   │   detr_loss.py
-│   │   focal_loss.py
 │   │   motr_loss.py
 │   │   __init__.py
 │

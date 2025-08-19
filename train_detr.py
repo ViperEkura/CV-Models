@@ -14,12 +14,9 @@ if __name__ == "__main__":
     
     download_voc(os.path.join(os.getcwd(), 'data', 'voc'))
     dataset_path = os.path.join(os.getcwd(), 'data', 'voc', 'VOC2012')
-    train_dataset = VOCDataset(root_dir=dataset_path, split='train')
-    val_dataset = VOCDataset(root_dir=dataset_path, split='val')
-    
+    train_dataset = VOCDataset(root_dir=dataset_path, split='trainval')
     train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, collate_fn=collate_fn_pad)
-    test_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, collate_fn=collate_fn_pad)
-    
+ 
     model = DETR(num_classes=100).to(device)
     param_groups = [
         {
@@ -41,7 +38,7 @@ if __name__ == "__main__":
     criterion = SetCriterion(num_classes=100, matcher=matcher, eos_coef=0.01)
     
     avg_loss = []
-    for i in range(1, 4):
+    for i in range(1, 2):
         loss = train_fn(model, train_loader, optimizer, criterion, i, device, 4)
         avg_loss.append(loss)
     

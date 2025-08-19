@@ -1,11 +1,36 @@
 import torch
 import torch.nn.functional as F
 
-from typing import List
+from typing import List, Literal
 from torch import Tensor
 from torch.nn.modules import Module
 from modules.model.matcher import HungarianMatcher
 from modules.utils.box_ops import box_giou, xywh_to_xyxy
+
+def focal_loss(
+    inputs: Tensor, 
+    targets: Tensor, 
+    weight: Tensor = None, 
+    alpha: float = 0.25, 
+    gamma=2.0, 
+    reduction='mean'
+) -> Tensor:
+    ce_loss = F.cross_entropy(inputs, targets, reduction='none', weight=None)
+    
+    logits = F.softmax(inputs, dim=-1)
+    pt = logits.gather(1, targets.unsqueeze(1)).squeeze(1)
+    focal_loss = alpha * torch.pow(1 - pt, gamma) * ce_loss
+    
+    if weight is not None:
+        class_weights = weight[targets]
+        focal_loss = focal_loss * class_weights
+    
+    if reduction == 'mean':
+        return focal_loss.mean()
+    elif reduction == 'sum':
+        return focal_loss.sum()
+    else:
+        return focal_loss
 
 
 class SetCriterion(Module):
@@ -14,7 +39,8 @@ class SetCriterion(Module):
         num_classes: int,
         matcher: HungarianMatcher,
         eos_coef: float = 0.1,
-        class_weight: Tensor = None
+        class_weight: Tensor = None,
+        class_loss_fn: Literal['focal', 'ce'] = 'focal'
     ):
         super().__init__()
         
@@ -22,6 +48,7 @@ class SetCriterion(Module):
         self.matcher = matcher
         self.weight_dict = matcher.get_cost_weight_dict()
         self.eos_coef = eos_coef
+        self.class_loss_fn = focal_loss if class_loss_fn == 'focal' else F.cross_entropy
         
         if class_weight is None:
             self.empty_weight = torch.ones(self.num_classes + 1)
@@ -38,13 +65,20 @@ class SetCriterion(Module):
         gt_bbox: List[Tensor]
     ) -> Tensor:
         """
+        Compute the loss for DETR model.
+        
         Args:
-            pred_class (Tensor): shape [B, Q, C + 1]
-            pred_bbox (Tensor): shape [B, Q, 4]
-            gt_class (List[Tensor]): length = B
-            gt_bbox (List[Tensor]): length = B
+            pred_class (Tensor): Predicted class logits with shape [batch_size, num_queries, num_classes + 1]
+                        where +1 is for the empty (no object) class
+            pred_bbox (Tensor): Predicted bounding boxes with shape [batch_size, num_queries, 4]
+                       where boxes are in (cx, cy, w, h) format
+            gt_class (List[Tensor]): Ground truth class labels for each sample in the batch.
+                         Each tensor has shape [num_gt_boxes] and length of list equals batch_size
+            gt_bbox (List[Tensor]): Ground truth bounding boxes for each sample in the batch.
+                        Each tensor has shape [num_gt_boxes, 4] and length of list equals batch_size
+                        
         Returns:
-            Tensor: total loss
+            Tensor: Total weighted loss value averaged over the batch
         """
         
         B = pred_class.size(0)
@@ -53,7 +87,7 @@ class SetCriterion(Module):
         pred_bbox_list = [box.squeeze(0) for box in pred_bbox.split(1, dim=0)]
         row_inds, col_inds = self.matcher.match(pred_class_list, pred_bbox_list, gt_class, gt_bbox)
         
-        cls_losses, bbox_losses, giou_losses = 0, 0, 0 
+        cls_losses, bbox_losses, giou_losses = 0, 0, 0
         
         for b in range(B):
             pred_cls, pred_box = pred_class_list[b], pred_bbox_list[b]
@@ -67,7 +101,7 @@ class SetCriterion(Module):
             ) # [Q]
             target_cls[row_ind] = gt_cls[col_ind]
             
-            cls_loss = F.cross_entropy(
+            cls_loss = self.class_loss_fn(
                 pred_cls, 
                 target_cls, 
                 weight=self.empty_weight, 
