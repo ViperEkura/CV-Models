@@ -25,13 +25,13 @@ if __name__ == "__main__":
         {
             'params': [p for n, p in model.named_parameters() 
                        if not n.find("backbone") and p.requires_grad],
-            'lr': 1e-4,
+            'lr': 1e-3,
             'weight_decay': 1e-3
         },
         {
             'params': [p for n, p in model.named_parameters() 
                        if n.find("backbone") and p.requires_grad],
-            'lr': 1e-3,
+            'lr': 1e-4,
             'weight_decay': 1e-3
         }
     ]
