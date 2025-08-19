@@ -1,5 +1,7 @@
 import torch
 import torch.nn.functional as F
+
+from typing import List
 from torch import Tensor
 from torch.nn.modules import Module
 from modules.model.matcher import HungarianMatcher
@@ -32,8 +34,8 @@ class SetCriterion(Module):
         self, 
         pred_class: Tensor,
         pred_bbox: Tensor,
-        gt_class: Tensor,
-        gt_bbox: Tensor
+        gt_class: List[Tensor],
+        gt_bbox: List[Tensor]
     ) -> Tensor:
         """
         Args:
@@ -72,19 +74,19 @@ class SetCriterion(Module):
                 reduction='mean'
             )
             
-            pred_box_permuted = pred_box[row_ind] # [Q, 4]
+            pred_box_permuted = pred_box[row_ind] # [G, 4]
             gt_box_permuted = gt_box[col_ind]     # [G, 4]
             
             box_loss = F.l1_loss(
                 pred_box_permuted, 
                 gt_box_permuted, 
-                reduction='sum'
+                reduction="sum"
             ) / len(row_ind)
             
             pred_box_permuted = xywh_to_xyxy(pred_box_permuted)
             gt_box_permuted = xywh_to_xyxy(gt_box_permuted)
             giou = box_giou(pred_box_permuted, gt_box_permuted).diag()
-            giou_loss = torch.mean(1 - giou)
+            giou_loss = torch.sum(1 - giou) / len(row_ind)
             
             cls_losses += cls_loss
             bbox_losses += box_loss
