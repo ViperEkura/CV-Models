@@ -41,7 +41,7 @@ if __name__ == "__main__":
     criterion = SetCriterion(num_classes=100, matcher=matcher, eos_coef=0.01)
     
     avg_loss = []
-    for i in range(1, 2):
+    for i in range(1, 4):
         loss = train_fn(model, train_loader, optimizer, criterion, i, device, 4)
         avg_loss.append(loss)
     
