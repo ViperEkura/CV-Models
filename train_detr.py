@@ -15,7 +15,7 @@ if __name__ == "__main__":
     download_voc(os.path.join(os.getcwd(), 'data', 'voc'))
     dataset_path = os.path.join(os.getcwd(), 'data', 'voc', 'VOC2012')
     train_dataset = VOCDataset(root_dir=dataset_path, split='trainval')
-    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, collate_fn=collate_fn_pad)
+    train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True, collate_fn=collate_fn_pad)
  
     model = DETR(num_classes=100).to(device)
     param_groups = [
