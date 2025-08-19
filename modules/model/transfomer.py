@@ -7,6 +7,7 @@ from torch import Tensor
 
 class Attention(nn.Module):
     def __init__(self, n_dim, n_heads, head_dim, bias=False):
+        super().__init__()
         self.n_heads = n_heads
         self.head_dim = head_dim
         self.q_proj = nn.Linear(n_dim, n_heads * head_dim, bias=bias)
@@ -24,7 +25,7 @@ class Attention(nn.Module):
         return o
 
     def _split_heads(self, x: Tensor):
-        batch_size, seq_len, n_dim = x.shape
+        batch_size, seq_len, _ = x.shape
         x = x.reshape(batch_size, seq_len, self.n_heads, self.head_dim)
         x = x.transpose(1, 2)
         return x
@@ -34,9 +35,9 @@ class FeedForward(nn.Module):
     def __init__(self, n_dim, bias=False):
         super().__init__()
         self.in_proj = nn.Linear(n_dim, 4 * n_dim, bias=bias)
-        self.gate_proj = nn.Linear(4 * n_dim, n_dim, bias=bias)
-        self.out_proj = nn.Linear(n_dim, n_dim, bias=bias)
-
+        self.gate_proj = nn.Linear(n_dim, 4 * n_dim, bias=bias)
+        self.out_proj = nn.Linear(4 * n_dim, n_dim, bias=bias)
+    
     def forward(self, x):
         x = self.out_proj(self.in_proj(x) * F.silu(self.gate_proj(x)))
         return x
@@ -80,17 +81,18 @@ class TransformerDecoderLayer(nn.Module):
     
 
 class Transformer(nn.Module):
-    def __init__(self, n_dim, n_heads, encoder_layers, decoder_layers, head_dim=None, bias=False):
+    def __init__(self, n_dim, n_heads, num_encoder_layers, num_decoder_layers, head_dim=None, bias=False):
+        super().__init__()
         if head_dim is None:
             head_dim = n_dim // n_heads
             
         self.encoder = nn.ModuleList([
             TransformerEncoderLayer(n_dim, n_heads, head_dim, bias=bias)
-            for _ in range(encoder_layers)
+            for _ in range(num_encoder_layers)
         ])
         self.decoder = nn.ModuleList([
             TransformerDecoderLayer(n_dim, n_heads, head_dim, bias=bias)
-            for _ in range(decoder_layers)
+            for _ in range(num_decoder_layers)
         ])
         
     def forward(self, src, tgt):

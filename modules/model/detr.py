@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch import Tensor
 from typing import Tuple
 from modules.model.resnet import ResNet
+from modules.model.transfomer import Transformer
 
 
 class PositionEmbeddingLearned(nn.Module):
@@ -57,12 +58,11 @@ class DETR(nn.Module):
         super().__init__()
         self.backbone = ResNet("resnet34", in_channel)
         self.conv = nn.Conv2d(512, hidden_dim, 1) 
-        self.transformer = nn.Transformer(
-            d_model=hidden_dim,
-            nhead=nheads,
-            batch_first=True,
+        self.transformer = Transformer(
+            n_dim=hidden_dim,
+            n_heads=nheads,
             num_encoder_layers=num_encoder_layers,
-            num_decoder_layers=num_decoder_layers,
+            num_decoder_layers=num_decoder_layers
         )
         self.class_embed = nn.Linear(hidden_dim, num_classes + 1)           # +1 for background
         self.bbox_embed = MLP(hidden_dim, hidden_dim, 4, 3)                 # bbox(x,y,w,h)
@@ -87,10 +87,7 @@ class DETR(nn.Module):
         query_pos = self.query_pos.unsqueeze(0).repeat(embeded.size(0), 1, 1)
         h = self.transformer(
             src=embeded,                                                # [batch_size, H*W, hidden_dim]
-            tgt=query_pos,                                              # [batch_size, num_queries, hidden_dim]
-            src_is_causal=False,
-            tgt_is_causal=False,
-            memory_is_causal=False,
+            tgt=query_pos                                               # [batch_size, num_queries, hidden_dim]
         )                                                               # output: [batch_size, num_queries, hidden_dim]
         
         pred_class = self.class_embed(h)                               # [batch_size, num_queries, num_classes+1]
