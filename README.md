@@ -6,3 +6,54 @@
 - **模型模块**：
   - DETR目标检测模型
   - ResNet系列骨干网络(ResNet18~ResNet152)
+- **数据集支持**：
+  - COCO/VOC数据集自动下载与预处理
+  - 支持自定义数据集加载
+- **损失函数**：
+  - DETR专用SetCriterion损失
+  - Focal Loss
+  - MOTR专用多任务损失
+- **优化器**：
+  - Muon优化器（基于牛顿-舒尔茨迭代的正交化优化）
+  - 支持混合优化策略（Muon+AdamW）
+- **工具库**：
+  - 目标检测可视化工具
+  - 盒子操作工具（IoU/GIoU计算）
+  - 分类/检测训练模板
+
+### 目录结构
+
+```bash
+.
+│   __init__.py
+│
+├───dataset
+│   │   dataset.py
+│   │   download.py
+│   │   __init__.py
+│
+├───loss
+│   │   detr_loss.py
+│   │   focal_loss.py
+│   │   motr_loss.py
+│   │   __init__.py
+│
+├───model
+│   │   detr.py
+│   │   matcher.py
+│   │   motr.py
+│   │   resnet.py
+│   │   transfomer.py
+│   │   __init__.py
+│
+├───optim
+│       muon.py
+│
+└───utils
+        box_ops.py
+        classification.py
+        detection.py
+        plot_detection.py
+        __init__.py
+
+```

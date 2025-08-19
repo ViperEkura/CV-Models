@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torch import Tensor
-from typing import Tuple
+from typing import Tuple, Callable
 from modules.model.resnet import ResNet
 from modules.model.transfomer import Transformer
 
@@ -99,7 +99,8 @@ class DETR(nn.Module):
 class PostProcess(nn.Module):
     
     @staticmethod
-    def process(pred_class: Tensor, pred_bbox: Tensor, threshold: float = 0.5) -> Tensor:
+    def process(model:Callable[..., Tuple[Tensor, Tensor]], image:Tensor, threshold: float = 0.5) -> Tensor:
+        pred_class, pred_bbox = model(image)
         scores, labels = pred_class.max(dim=-1)
         keep = scores > threshold
         valid_detections = (labels > 0) & keep
