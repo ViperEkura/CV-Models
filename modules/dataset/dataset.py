@@ -54,11 +54,15 @@ class COCODataset(Dataset):
             self.annotations = json.load(f)
         
         self.image_ids = [img['id'] for img in self.annotations['images']]
-
+        
+        # 统计各类别的数量
+        self.class_counts = [0] * (max([anno['category_id'] for anno in self.annotations['annotations']]) + 1) if self.annotations['annotations'] else [0]
+        for anno in self.annotations['annotations']:
+            category_id = anno['category_id']
+            self.class_counts[category_id] += 1
 
     def __len__(self) -> int:
         return len(self.image_ids)
-
 
     def __getitem__(self, idx: int) -> Tuple[Tensor, Dict[str, Tensor]]:
         image_id = self.image_ids[idx]
@@ -99,6 +103,10 @@ class COCODataset(Dataset):
         labels = labels.to(self.device)
         
         return image, labels, boxes
+    
+    def get_class_counts(self):
+        """获取各类别的统计数量"""
+        return self.class_counts
     
 
 class VOCDataset(Dataset):
@@ -142,6 +150,17 @@ class VOCDataset(Dataset):
 
         self.classes = ('__background__',) + tuple(sorted(classes))
         self.class_to_idx_dict = {cls: idx for idx, cls in enumerate(self.classes)}
+        
+        # 统计各类别的数量
+        self.class_counts = [0] * len(self.classes) 
+        for image_id in self.image_ids:
+            annotation_path = os.path.join(self.annotation_dir, f'{image_id}.xml')
+            tree = ET.parse(annotation_path)
+            root = tree.getroot()
+            for obj in root.findall('object'):
+                class_name = obj.find('name').text
+                class_idx = self.class_to_idx_dict.get(class_name, 0)  # 0 for background
+                self.class_counts[class_idx] += 1
 
     def __len__(self):
         return len(self.image_ids)
@@ -209,3 +228,6 @@ class VOCDataset(Dataset):
     
     def idx_to_class(self, idx):
         return self.classes[idx]
+        
+    def get_class_counts(self):
+        return self.class_counts
