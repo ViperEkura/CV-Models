@@ -8,7 +8,7 @@ from PIL import Image
 from torch import Tensor
 from torchvision import transforms
 from torch.utils.data import Dataset
-from typing import Any, List, Tuple, Dict
+from typing import Any, Callable, List, Tuple, Dict
 
 
 class DetectionDataset(Dataset):
@@ -16,7 +16,7 @@ class DetectionDataset(Dataset):
         self, 
         root_dir: str, 
         split: str='train', 
-        transform: transforms.Compose = None,
+        transform: Callable[..., Tensor] = None,
         default_image_size: Tuple[int, int]=(224, 224),
         device="cuda"
     ):
@@ -52,8 +52,9 @@ class DetectionDataset(Dataset):
     def load_image(self, idx: int) -> Tensor:
         image_path = self.image_paths[idx]
         image = Image.open(image_path).convert('RGB')
+        image_tensor = self.transform(image).to(self.device)
         
-        return self.transform(image)
+        return  image_tensor
     
     def load_annotation(self, idx: int) -> Dict[str, Any]:
         annotation = self.annotations[idx]

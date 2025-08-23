@@ -56,8 +56,8 @@ class DETR(nn.Module):
         num_queries: int = 100,
     ):
         super().__init__()
-        self.backbone = ResNet("resnet34", in_channel)
-        self.conv = nn.Conv2d(512, hidden_dim, 1) 
+        self.backbone = ResNet("resnet50", in_channel)
+        self.conv = nn.Conv2d(2048, hidden_dim, 1) 
         self.transformer = Transformer(
             n_dim=hidden_dim,
             n_heads=nheads,

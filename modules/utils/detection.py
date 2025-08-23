@@ -1,10 +1,9 @@
-import torch
-
 from torch import Tensor
 from torch.nn import Module
-from typing import Callable, Tuple, List
+
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
+from typing import Callable, Optional,  Tuple, List
 
 
 
@@ -14,14 +13,11 @@ def train_fn(
     optimizer: Optimizer, 
     criterion: Callable[..., Tensor] , 
     epoch: int,
-    device: torch.device,
     print_every: int
 ) -> float:
     model.train()
     loss_list = []
     for batch_idx, (img, label, box) in enumerate(train_loader):
-        img = img.to(device)
-        
         pred_class, pred_bbox = model(img)
         loss = criterion(pred_class, pred_bbox, label, box)
         optimizer.zero_grad()
@@ -44,14 +40,11 @@ def test_fn(
     test_loader: DataLoader,
     criterion: Callable[...,  Tensor],
     epoch: int,
-    device: torch.device,
     print_every: int
 ) -> float:
     model.eval()
     loss_list = []
     for batch_idx, (img, label, box) in enumerate(test_loader):
-        img = img.to(device)
-        
         pred_class, pred_bbox = model(img)
         loss = criterion(pred_class, pred_bbox, label, box)
         loss_list.append(loss.item())
@@ -70,19 +63,22 @@ def test_fn(
 def train_loop(
     model: Module | Callable[..., Tensor],
     train_loader: DataLoader,
-    test_loader: DataLoader,
     optimizer: Optimizer,
     criterion: Callable[[Tensor, Tensor],  Tensor],
     epochs: int,
     print_every: int,
-    device: torch.device,
+    test_loader: Optional[DataLoader] = None,
 )-> Tuple[List[float], List[float]]:
+    
     train_losses, test_losses = [], []
     for epoch in range(1, epochs + 1):
-        train_loss = train_fn(model, train_loader, optimizer, criterion, epoch, device, print_every)
-        test_loss = test_fn(model, test_loader, criterion, epoch, device, print_every)
-        
+        train_loss = train_fn(model, train_loader, optimizer, criterion, epoch, print_every)
         train_losses.append(train_loss)
-        test_losses.append(test_loss)
+        
+        if test_loader:
+            test_loss = test_fn(model, test_loader, criterion, epoch, print_every)
+            test_losses.append(test_loss)
+        else:
+            test_losses.append(-1)
         
     return train_losses, test_losses
