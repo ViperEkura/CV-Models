@@ -136,7 +136,7 @@ def test_detr_loss_with_manual():
     cost_bbox = 5.0
     cost_giou = 2.0
     matcher = HungarianMatcher(cost_class, cost_bbox, cost_giou)
-    criterion = SetCriterion(num_classes=10, matcher=matcher)
+    criterion = SetCriterion(num_classes=10, matcher=matcher, class_loss_fn='ce')
 
     # 创建模拟预测数据
     batch_size = 2
