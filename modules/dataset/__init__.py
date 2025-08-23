@@ -1,5 +1,5 @@
 from .download import download_coco, download_voc
-from .dataset import COCODataset, VOCDataset, collate_fn_pad
+from .dataset import COCODataset, VOCDataset
 
 __all__ = [
     "download_coco",
@@ -8,8 +8,5 @@ __all__ = [
     # dataset
     "COCODataset",
     "VOCDataset",
-    
-    # collate
-    "collate_fn_pad",
 
 ]

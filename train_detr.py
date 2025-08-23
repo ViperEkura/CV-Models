@@ -1,7 +1,6 @@
-from modules.dataset.dataset import VOCDataset, collate_fn_pad
-from modules.dataset.download import download_voc
+from modules.dataset import VOCDataset, download_voc
 from modules.model import DETR, HungarianMatcher
-from modules.loss.detr_loss import SetCriterion
+from modules.loss import SetCriterion
 from modules.utils.detection import train_fn
 from torch.utils.data import DataLoader
 from torch import optim
@@ -15,28 +14,30 @@ if __name__ == "__main__":
     download_voc(os.path.join(os.getcwd(), 'data', 'voc'))
     dataset_path = os.path.join(os.getcwd(), 'data', 'voc', 'VOC2012')
     train_dataset = VOCDataset(root_dir=dataset_path, split='trainval')
-    train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True, collate_fn=collate_fn_pad)
+    train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True, collate_fn=VOCDataset.collate_fn)
 
     model = DETR(num_classes=20).to(device)
     param_groups = [
         {
             'params': [p for n, p in model.named_parameters() 
                        if not n.find("backbone") and p.requires_grad],
-            'lr': 1e-3,
+            'lr': 1e-4,
             'weight_decay': 1e-3
         },
         {
             'params': [p for n, p in model.named_parameters() 
                        if n.find("backbone") and p.requires_grad],
-            'lr': 1e-4,
+            'lr': 1e-5,
             'weight_decay': 1e-3
         }
     ]
 
     optimizer = optim.AdamW(param_groups)
     matcher = HungarianMatcher(1, 5, 2)
-    class_weight = 1 / (torch.tensor(train_dataset.class_counts, dtype=torch.float) + 1)
-    criterion = SetCriterion(num_classes=20, matcher=matcher, class_weight=class_weight, eos_coef=0.05, class_loss_fn="ce")
-    loss = train_fn(model, train_loader, optimizer, criterion, 1, device, 4)
+    # class_weight = 1 / (torch.tensor(train_dataset.class_counts, dtype=torch.float) + 1)
+    criterion = SetCriterion(num_classes=20, matcher=matcher, eos_coef=1e-3)
+    
+    for epoch in range(1, 3):
+        loss = train_fn(model, train_loader, optimizer, criterion, epoch, device, 4)
 
     torch.save(model.state_dict(), 'detr.pth') 

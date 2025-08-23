@@ -1,147 +1,114 @@
 import os
+import glob
 import json
 import torch
 import xml.etree.ElementTree as ET
 
 from PIL import Image
-from typing import Tuple, Dict
-
 from torch import Tensor
 from torchvision import transforms
 from torch.utils.data import Dataset
+from typing import Any, List, Tuple, Dict
 
 
-def collate_fn_pad(batch):
-    images = [item[0] for item in batch]
-    labels = [item[1] for item in batch]
-    boxes  = [item[2] for item in batch]
-    
-    images = torch.stack(images, dim=0)
-    
-    return images, labels, boxes
-
-
-class COCODataset(Dataset):
-    def __init__(
-        self,
-        image_dir: str,
-        anno_dir: str,
-        image_size: Tuple[int, int] = (224, 224),
-        mode: str = 'train',
-        device="cuda"
-    ):
-        self.image_dir = image_dir
-        self.anno_dir = anno_dir
-        self.image_size = image_size
-        self.mode = mode
-        self.device = device
-        
-        self.transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
-        
-        if mode == 'train':
-            self.image_subdir = 'train2017'
-            self.anno_file = 'instances_train2017.json'
-        elif mode == 'val':
-            self.image_subdir = 'val2017'
-            self.anno_file = 'instances_val2017.json'
-        else:
-            raise ValueError("Unsupported annotation file name.")
-        
-        with open(os.path.join(self.anno_dir, self.anno_file), 'r') as f:
-            self.annotations = json.load(f)
-        
-        self.image_ids = [img['id'] for img in self.annotations['images']]
-        
-        # 统计各类别的数量
-        self.class_counts = [0] * (max([anno['category_id'] for anno in self.annotations['annotations']]) + 1) if self.annotations['annotations'] else [0]
-        for anno in self.annotations['annotations']:
-            category_id = anno['category_id']
-            self.class_counts[category_id] += 1
-
-    def __len__(self) -> int:
-        return len(self.image_ids)
-
-    def __getitem__(self, idx: int) -> Tuple[Tensor, Dict[str, Tensor]]:
-        image_id = self.image_ids[idx]
-        
-        image_path = os.path.join(self.image_dir, f"{image_id:012d}.jpg")
-        image = Image.open(image_path).convert('RGB')
-        image = image.resize(self.image_size)
-        
-        annos = [anno for anno in 
-                 self.annotations['annotations'] if anno['image_id'] == image_id]
-        boxes = []
-        labels = []
-        
-        for anno in annos:
-            x_min, y_min, w, h = anno['bbox']
-            # Convert to normalized xywh format
-            x_center = x_min + w / 2
-            y_center = y_min + h / 2
-            x_center_norm = x_center / self.image_size[1]  # width
-            y_center_norm = y_center / self.image_size[0]  # height
-            w_norm = w / self.image_size[1]
-            h_norm = h / self.image_size[0]
-            boxes.append([x_center_norm, y_center_norm, w_norm, h_norm])
-            labels.append(anno['category_id'])
-        
-        if not annos:
-            boxes = torch.zeros((1, 4), dtype=torch.float32)
-            labels = torch.zeros((1,), dtype=torch.int64)
-        else:
-            boxes = torch.tensor(boxes, dtype=torch.float32)
-            labels = torch.tensor(labels, dtype=torch.int64)
-        
-        image = self.transform(image)
-        
-        # Move tensors to specified device
-        image = image.to(self.device)
-        boxes = boxes.to(self.device)
-        labels = labels.to(self.device)
-        
-        return image, labels, boxes
-    
-    def get_class_counts(self):
-        """获取各类别的统计数量"""
-        return self.class_counts
-    
-
-class VOCDataset(Dataset):
-    
+class DetectionDataset(Dataset):
     def __init__(
         self, 
-        root_dir, 
-        split='train', 
-        default_image_size=(224, 224),
+        root_dir: str, 
+        split: str='train', 
+        transform: transforms.Compose = None,
+        default_image_size: Tuple[int, int]=(224, 224),
         device="cuda"
     ):
         self.root_dir = root_dir
         self.split = split
         self.default_image_size = default_image_size
         self.device = device
+        self.class_to_id_lut: Dict[str, int] = {}
+        self.idx_to_class_lut: Dict[int, str] = {}
+        self.class_counts: Dict[str, int] = {}
+        self.image_paths: List[str] = []
+        self.annotations: List[Dict[str, Any]] = []
         
-        self.transform = transforms.Compose([
-            transforms.Resize(self.default_image_size),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
+        if not transform:
+            self.transform = transforms.Compose([
+                transforms.Resize(self.default_image_size),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            ])
+        else: 
+            self.transform = transform
+        
+    def get_class_counts(self):
+        """获取各类别的统计数量"""
+        return self.class_counts
+    
+    def class_to_idx(self, class_name: str):
+        return self.class_to_id_lut[class_name]
+    
+    def idx_to_class(self, idx):
+        return self.idx_to_class_lut[idx]
 
-        self.image_dir = os.path.join(root_dir, 'JPEGImages')
-        self.annotation_dir = os.path.join(root_dir, 'Annotations')
-        self.split_dir = os.path.join(root_dir, 'ImageSets', 'Main')
+    def load_image(self, idx: int) -> Tensor:
+        image_path = self.image_paths[idx]
+        image = Image.open(image_path).convert('RGB')
+        
+        return self.transform(image)
+    
+    def load_annotation(self, idx: int) -> Dict[str, Any]:
+        annotation = self.annotations[idx]
+        for key, value in annotation.items():
+            if isinstance(value, Tensor):
+                annotation[key] = value.to(self.device)
+                
+        return annotation
+    
+    def __len__(self) -> int:
+        return len(self.image_paths)
+    
+    def __getitem__(self, idx: int) -> Tuple[Tensor, Tensor, Tensor]:
+        image = self.load_image(idx)
+        annotation = self.load_annotation(idx)
+        labels = annotation['labels']
+        boxes = annotation['boxes']
+        
+        return image, labels, boxes
 
-        # load image names
-        split_file = os.path.join(self.split_dir, f'{split}.txt')
+    @staticmethod
+    def collate_fn(batch):
+        images = [item[0] for item in batch]
+        labels = [item[1] for item in batch]
+        boxes  = [item[2] for item in batch]
+        
+        images = torch.stack(images, dim=0)
+        
+        return images, labels, boxes
+
+
+class VOCDataset(DetectionDataset):
+    def __init__(
+        self, 
+        root_dir: str, 
+        split: str='train', 
+        transform: transforms.Compose = None,
+        default_image_size: Tuple[int, int]=(224, 224),
+        device="cuda"
+    ):
+        super().__init__(root_dir, split, transform, default_image_size, device)
+        
+        image_dir = os.path.join(root_dir, 'JPEGImages')
+        anno_dir = os.path.join(root_dir, 'Annotations')
+        split_dir = os.path.join(root_dir, 'ImageSets', 'Main')
+
+        # Load image names
+        split_file = os.path.join(split_dir, f'{split}.txt')
         with open(split_file, 'r') as f:
             self.image_ids = [line.strip() for line in f.readlines()]
 
-        # load classes
+        # Load classes
         classes = set()
         for image_id in self.image_ids:
-            annotation_path = os.path.join(self.annotation_dir, f'{image_id}.xml')
+            annotation_path = os.path.join(anno_dir, f'{image_id}.xml')
             tree = ET.parse(annotation_path)
             root = tree.getroot()
             for obj in root.findall('object'):
@@ -149,85 +116,119 @@ class VOCDataset(Dataset):
                 classes.add(class_name)
 
         self.classes = ('__background__',) + tuple(sorted(classes))
-        self.class_to_idx_dict = {cls: idx for idx, cls in enumerate(self.classes)}
+        self.class_to_id_lut = {cls: idx for idx, cls in enumerate(self.classes)}
+        self.idx_to_class_lut = {idx: cls for idx, cls in enumerate(self.classes)}   
+        self.class_counts = [0] * len(self.classes)
+        background_idx = self.class_to_id_lut['__background__']
         
-        # 统计各类别的数量
-        self.class_counts = [0] * len(self.classes) 
+        # load images and annotations
         for image_id in self.image_ids:
-            annotation_path = os.path.join(self.annotation_dir, f'{image_id}.xml')
+            iamge_path = os.path.join(image_dir, f'{image_id}.jpg')
+            self.image_paths.append(iamge_path)
+            
+            annotation_path = os.path.join(anno_dir, f'{image_id}.xml')
             tree = ET.parse(annotation_path)
             root = tree.getroot()
+            
+            size = root.find('size')
+            original_width = int(size.find('width').text)
+            original_height = int(size.find('height').text)
+            
+            boxes = []
+            labels = []
+            
             for obj in root.findall('object'):
                 class_name = obj.find('name').text
-                class_idx = self.class_to_idx_dict.get(class_name, 0)  # 0 for background
-                self.class_counts[class_idx] += 1
+                labels.append(self.class_to_id_lut.get(class_name, background_idx))
+                
+                bbox = obj.find('bndbox')
+                xmin = float(bbox.find('xmin').text) / original_width
+                ymin = float(bbox.find('ymin').text) / original_height
+                xmax = float(bbox.find('xmax').text) / original_width
+                ymax = float(bbox.find('ymax').text) / original_height
+                
+                # xywh format
+                x_center = (xmin + xmax) / 2
+                y_center = (ymin + ymax) / 2
+                w = xmax - xmin
+                h = ymax - ymin
+                boxes.append([x_center, y_center, w, h])
+                
+                boxes_tensor = torch.tensor(boxes, dtype=torch.float32)
+                labels_tensor = torch.tensor(labels, dtype=torch.int64)
 
-    def __len__(self):
-        return len(self.image_ids)
-
-    def __getitem__(self, idx):
-        image_id = self.image_ids[idx]
-
-        image = self._load_image(image_id)
-        target = self._load_target(image_id)
-        image = self.transform(image)
-
-        # Move tensors to specified device
-        image = image.to(self.device)
-        target["labels"] = target["labels"].to(self.device)
-        target["boxes"] = target["boxes"].to(self.device)
-
-        return image, target["labels"], target["boxes"]
-
-    def _load_image(self, image_id) -> Tensor:
-        image_path = os.path.join(self.image_dir, f'{image_id}.jpg')
-        image = Image.open(image_path).convert('RGB')
-        return image
-
-    def _load_target(self, image_id):
-        annotation_path = os.path.join(self.annotation_dir, f'{image_id}.xml')
-        tree = ET.parse(annotation_path)
-        root = tree.getroot()
-
-        boxes = []
-        labels = []
-
-        # 获取图像原始尺寸
-        size = root.find('size')
-        original_width = int(size.find('width').text)
-        original_height = int(size.find('height').text)
+                annotation = { 'boxes': boxes_tensor, 'labels': labels_tensor}
+                self.annotations.append(annotation)
 
 
-        background_idx = self.class_to_idx_dict['__background__']
-        for obj in root.findall('object'):
-            class_name = obj.find('name').text
-            labels.append(self.class_to_idx_dict.get(class_name, background_idx))
+class COCODataset(DetectionDataset):
+    def __init__(
+        self, 
+        root_dir: str, 
+        split: str='train', 
+        transform: transforms.Compose = None,
+        default_image_size: Tuple[int, int]=(224, 224),
+        device="cuda"
+    ):
+        super().__init__(root_dir, split, transform, default_image_size, device)
+
+
+        image_dir_candidates = glob.glob(os.path.join(root_dir, f'{split}*'))
+        if not image_dir_candidates:
+            raise ValueError(f"No image directory found for split {split}")
+        image_dir = image_dir_candidates[0]
+
+
+        anno_dir = os.path.join(root_dir, 'annotations')
+        anno_file_candidates = glob.glob(os.path.join(anno_dir, f'instances_{split}*.json'))
+        if not anno_file_candidates:
+            raise ValueError(f"No annotation file found for split {split}")
+        annotation_path = anno_file_candidates[0]
+
+        with open(annotation_path, 'r') as f:
+            coco_data = json.load(f)
+
+        categories = sorted(coco_data['categories'], key=lambda x: x['id'])
+        self.classes = ('__background__',) + tuple(cat['name'] for cat in categories)
+        self.class_to_id_lut = {cls: idx for idx, cls in enumerate(self.classes)}
+        self.idx_to_class_lut = {idx: cls for idx, cls in enumerate(self.classes)}
+        self.class_counts = [0] * len(self.classes)
+
+  
+        self.image_ids = []
+        self.image_paths = []
+        for img_info in coco_data['images']:
+            self.image_ids.append(img_info['id'])
+            self.image_paths.append(os.path.join(image_dir, img_info['file_name']))
+
+        self.annotations = []
+        for img_id in self.image_ids:
+            img_anns = [ann for ann in coco_data['annotations'] if ann['image_id'] == img_id]
+            img_info = next(img for img in coco_data['images'] if img['id'] == img_id)
             
-            bbox = obj.find('bndbox')
-            xmin = float(bbox.find('xmin').text) / original_width
-            ymin = float(bbox.find('ymin').text) / original_height
-            xmax = float(bbox.find('xmax').text) / original_width
-            ymax = float(bbox.find('ymax').text) / original_height
+            boxes = []
+            labels = []
+            for ann in img_anns:
+                category_id = ann['category_id']
+                labels.append(self.class_to_id_lut.get(
+                    next(cat['name'] for cat in categories if cat['id'] == category_id), 
+                    self.class_to_id_lut['__background__']
+                ))
+                
+                xmin, ymin, w, h = ann['bbox']
+                xmax = xmin + w
+                ymax = ymin + h
+                original_width = img_info['width']
+                original_height = img_info['height']
+                x_center = (xmin + xmax) / 2 / original_width
+                y_center = (ymin + ymax) / 2 / original_height
+                w_norm = w / original_width
+                h_norm = h / original_height
+                boxes.append([x_center, y_center, w_norm, h_norm])
+
+            boxes_tensor = torch.tensor(boxes, dtype=torch.float32)
+            labels_tensor = torch.tensor(labels, dtype=torch.int64)
+            self.annotations.append({'boxes': boxes_tensor, 'labels': labels_tensor})
             
-            # Convert to xywh format
-            x_center = (xmin + xmax) / 2
-            y_center = (ymin + ymax) / 2
-            w = xmax - xmin
-            h = ymax - ymin
-            boxes.append([x_center, y_center, w, h])
-
-        target = {
-            'boxes': torch.as_tensor(boxes, dtype=torch.float32),
-            'labels': torch.as_tensor(labels, dtype=torch.int64),
-        }
-
-        return target
-
-    def class_to_idx(self, class_name):
-        return self.classes.index(class_name)
-    
-    def idx_to_class(self, idx):
-        return self.classes[idx]
-        
-    def get_class_counts(self):
-        return self.class_counts
+            for cls_id in labels:
+                self.class_counts[cls_id] += 1
