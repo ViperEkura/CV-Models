@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from torch import Tensor
 from typing import Tuple, Callable
-from modules.model.resnet import ResNet
+from torchvision.models import resnet50, ResNet50_Weights
 from modules.model.transfomer import Transformer
 
 
@@ -43,12 +43,23 @@ class MLP(nn.Module):
             x = F.relu(layer(x)) if i < self.num_layers - 1 else layer(x)
         return x
 
+class Backbone(nn.Module):
+    def __init__(self, train_backbone: bool = False):
+        super().__init__()
+        resnet50_model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
+        self.backbone = nn.Sequential(*list(resnet50_model.children())[:-2])
+        
+        for parameter in self.backbone.parameters():
+                parameter.requires_grad_(train_backbone)
+
+    def forward(self, x: Tensor):
+        return self.backbone(x)
+    
 
 class DETR(nn.Module):
     def __init__(
         self, 
         num_classes: int,
-        in_channel: int = 3, 
         hidden_dim: int = 256, 
         nheads: int = 8,
         num_encoder_layers: int = 6, 
@@ -56,7 +67,7 @@ class DETR(nn.Module):
         num_queries: int = 100,
     ):
         super().__init__()
-        self.backbone = ResNet("resnet50", in_channel)
+        self.backbone = Backbone()
         self.conv = nn.Conv2d(2048, hidden_dim, 1) 
         self.transformer = Transformer(
             n_dim=hidden_dim,

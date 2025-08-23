@@ -66,7 +66,7 @@ class ResNet(nn.Module):
         'resnet152': (Bottleneck, [3, 8, 36, 3], [64, 128, 256, 512], 4),
     }
 
-    def __init__(self, version, in_channel, out_dim=None):
+    def __init__(self, version, in_channel=3, out_dim=None):
         super(ResNet, self).__init__()
         assert version in self.configs
         block_type, block_list, channel_list, expansion = self.configs[version]
