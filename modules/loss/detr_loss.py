@@ -110,17 +110,18 @@ class SetCriterion(Module):
             
             pred_box_permuted = pred_box[row_ind] # [G, 4]
             gt_box_permuted = gt_box[col_ind]     # [G, 4]
+            num_boxes = max(gt_box_permuted.numel(), 1)
             
             box_loss = F.l1_loss(
                 pred_box_permuted, 
                 gt_box_permuted, 
                 reduction="sum"
-            ) / len(row_ind)
+            ) / num_boxes
             
             pred_box_permuted = xywh_to_xyxy(pred_box_permuted)
             gt_box_permuted = xywh_to_xyxy(gt_box_permuted)
             giou = box_giou(pred_box_permuted, gt_box_permuted).diag()
-            giou_loss = torch.sum(1 - giou) / len(row_ind)
+            giou_loss = torch.sum(1 - giou) / num_boxes
             
             cls_losses += cls_loss
             bbox_losses += box_loss
