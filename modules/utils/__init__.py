@@ -7,7 +7,7 @@ from .box_ops import (
     box_giou
 )
 
-from .plot_detection import plot_detection
+from .plot import plot_detection, plot_loss
 
 __all__ = [
     # box_ops
@@ -19,5 +19,6 @@ __all__ = [
     'box_giou',
     
     # plot_detection
-    'plot_detection'
+    'plot_detection',
+    'plot_loss'
 ]
