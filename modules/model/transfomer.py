@@ -16,9 +16,9 @@ class Attention(nn.Module):
         self.out_proj = nn.Linear(n_heads * head_dim, n_dim)
     
     def forward(self, q, k ,v):
-        q = self._split_heads(self.q_proj(q))
-        k = self._split_heads(self.k_proj(k))
-        v = self._split_heads(self.v_proj(v))
+        q = self._split_heads(self.q_proj(q)).transpose(1, 2)
+        k = self._split_heads(self.k_proj(k)).transpose(1, 2)
+        v = self._split_heads(self.v_proj(v)).transpose(1, 2)
         attn_out = F.scaled_dot_product_attention(q, k, v)
         attn_out = attn_out.transpose(1, 2).contiguous().flatten(2)
         o = self.out_proj(attn_out)
@@ -27,7 +27,6 @@ class Attention(nn.Module):
     def _split_heads(self, x: Tensor):
         batch_size, seq_len, _ = x.shape
         x = x.reshape(batch_size, seq_len, self.n_heads, self.head_dim)
-        x = x.transpose(1, 2)
         return x
 
 
