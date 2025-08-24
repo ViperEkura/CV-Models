@@ -65,17 +65,24 @@ class TransformerDecoderLayer(nn.Module):
         self.norm1 = nn.LayerNorm(n_dim)
         self.cross_attn = Attention(n_dim, n_heads, head_dim, bias=bias)
         self.norm2 = nn.LayerNorm(n_dim)
-        
+        self.ffn = FeedForward(n_dim, bias=bias)
+        self.norm3 = nn.LayerNorm(n_dim)
     def forward(self, tgt, memory):
+        # fix pre/ post nrom bug
         # self attntion
-        tgt2 = self.self_attn(tgt, tgt, tgt)
+        normed_tgt = self.norm1(tgt)
+        tgt2 = self.self_attn(normed_tgt, normed_tgt, normed_tgt)
         tgt = tgt + tgt2
-        tgt = self.norm1(tgt)
         
         # cross attention
-        tgt2 = self.cross_attn(tgt, memory, memory)
+        normed_tgt = self.norm2(tgt)
+        tgt2 = self.cross_attn(normed_tgt, memory, memory)
         tgt = tgt + tgt2
-        tgt = self.norm2(tgt)
+        
+        # fix no ffn bug
+        # FFN
+        tgt2 = self.ffn(self.norm3(tgt))
+        tgt = tgt + tgt2
         
         return tgt
     
