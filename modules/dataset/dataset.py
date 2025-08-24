@@ -140,7 +140,9 @@ class VOCDataset(DetectionDataset):
             
             for obj in root.findall('object'):
                 class_name = obj.find('name').text
-                labels.append(self.class_to_id_lut.get(class_name, background_idx))
+                class_idx = self.class_to_id_lut.get(class_name, background_idx)
+                labels.append(class_idx)
+                self.class_counts[class_idx] += 1
                 
                 bbox = obj.find('bndbox')
                 xmin = float(bbox.find('xmin').text) / original_width
