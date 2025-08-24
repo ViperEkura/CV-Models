@@ -40,7 +40,7 @@ class SetCriterion(Module):
         matcher: HungarianMatcher,
         eos_coef: float = 0.1,
         class_weight: Tensor = None,
-        class_loss_fn: Literal['focal', 'ce'] = 'focal'
+        class_loss_fn: Literal['focal', 'ce'] = 'ce'
     ):
         super().__init__()
         
