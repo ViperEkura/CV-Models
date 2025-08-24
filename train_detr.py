@@ -36,7 +36,7 @@ if __name__ == "__main__":
     optimizer = optim.AdamW(param_groups)
     matcher = HungarianMatcher(1, 5, 2)
     class_weight = 1 / (torch.tensor(train_dataset.class_counts, dtype=torch.float) + 1)
-    criterion = SetCriterion(num_classes=20, matcher=matcher, class_weight=class_weight, eos_coef=0.01, class_loss_fn="focal")
+    criterion = SetCriterion(num_classes=20, matcher=matcher, class_weight=class_weight, eos_coef=0.02, class_loss_fn="focal")
     
     train_loss, _ = train_loop(model, train_loader, optimizer, criterion, 10, 4)
     torch.save(model.state_dict(), 'detr.pth')

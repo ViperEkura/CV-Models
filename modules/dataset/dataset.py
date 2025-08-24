@@ -124,8 +124,8 @@ class VOCDataset(DetectionDataset):
         
         # load images and annotations
         for image_id in self.image_ids:
-            iamge_path = os.path.join(image_dir, f'{image_id}.jpg')
-            self.image_paths.append(iamge_path)
+            image_path = os.path.join(image_dir, f'{image_id}.jpg')
+            self.image_paths.append(image_path)
             
             annotation_path = os.path.join(anno_dir, f'{image_id}.xml')
             tree = ET.parse(annotation_path)
