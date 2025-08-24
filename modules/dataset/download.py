@@ -23,11 +23,14 @@ def download_coco(save_dir: str):
     
     # Download ZIP files
     for name, url in coco_urls.items():
-        save_path = os.path.join(save_dir, os.path.basename(url))
+        zip_filename = os.path.basename(url)
+        save_path = os.path.join(save_dir, zip_filename)
+        
         if os.path.exists(save_path):
+            print(f"Zip file {zip_filename} already exists. Skipping download.")
             continue
         
-        print(f"downloading {name} to {save_path}")
+        print(f"Downloading {name} to {save_path}")
         response = requests.get(url, stream=True)
         total_size = int(response.headers.get('content-length', 0))
         
@@ -44,25 +47,21 @@ def download_coco(save_dir: str):
     
     # Extract ZIP files
     for name, url in coco_urls.items():
-        filename = dir_names[name]
-        save_path = os.path.join(save_dir, filename)
+        zip_filename = os.path.basename(url)
+        zip_path = os.path.join(save_dir, zip_filename)
+        extract_dir = os.path.join(save_dir, dir_names[name])
         
-        if os.path.exists(save_path):
-            print(f"Zip file {save_path} does aready exist. Skipping extraction.")
+        if os.path.exists(extract_dir):
+            print(f"Directory {extract_dir} already exists. Skipping extraction.")
             continue
         
-        print(f"Extracting {name} to {save_path}")
-        with zipfile.ZipFile(save_dir, 'r') as zip_ref:
-            zip_ref.extractall(save_dir)
+        print(f"Extracting {name} to {extract_dir}")
+        os.makedirs(extract_dir, exist_ok=True)
+        
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(extract_dir)
     
-    print("finished downloading and extracting !")
-    
-    train_images_path = os.path.join(save_dir, 'train2017')
-    val_images_path = os.path.join(save_dir, 'val2017')
-    annotations_path = os.path.join(save_dir, 'annotations')
-    
-    return train_images_path, val_images_path, annotations_path
-
+    print("Finished downloading and extracting!")
 
 
 def download_voc(save_dir: str):
