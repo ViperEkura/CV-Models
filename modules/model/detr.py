@@ -49,8 +49,11 @@ class Backbone(nn.Module):
         resnet50_model = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
         self.backbone = nn.Sequential(*list(resnet50_model.children())[:-2])
         
-        for parameter in self.backbone.parameters():
-                parameter.requires_grad_(train_backbone)
+        for  name, parameter in self.backbone.named_parameters():
+            req_grad = train_backbone    
+            if train_backbone and ("layer1" in name or "bn" in name):
+                req_grad = False
+            parameter.requires_grad_(req_grad)
 
     def forward(self, x: Tensor):
         return self.backbone(x)
@@ -65,9 +68,10 @@ class DETR(nn.Module):
         num_encoder_layers: int = 6, 
         num_decoder_layers: int = 6,
         num_queries: int = 100,
+        train_backbone: bool = False
     ):
         super().__init__()
-        self.backbone = Backbone()
+        self.backbone = Backbone(train_backbone)
         self.conv = nn.Conv2d(2048, hidden_dim, 1) 
         self.transformer = Transformer(
             n_dim=hidden_dim,
