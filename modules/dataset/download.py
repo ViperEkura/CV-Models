@@ -59,7 +59,7 @@ def download_coco(save_dir: str):
         os.makedirs(extract_dir, exist_ok=True)
         
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(extract_dir)
+            zip_ref.extractall(save_dir)
     
     print("Finished downloading and extracting!")
 
