@@ -175,63 +175,103 @@ class COCODataset(DetectionDataset):
     ):
         super().__init__(root_dir, split, transform, default_image_size, device)
 
-
+        # 查找图像目录
         image_dir_candidates = glob.glob(os.path.join(root_dir, f'{split}*'))
         if not image_dir_candidates:
             raise ValueError(f"No image directory found for split {split}")
         image_dir = image_dir_candidates[0]
 
-
+        # 查找标注文件
         anno_dir = os.path.join(root_dir, 'annotations')
         anno_file_candidates = glob.glob(os.path.join(anno_dir, f'instances_{split}*.json'))
         if not anno_file_candidates:
             raise ValueError(f"No annotation file found for split {split}")
         annotation_path = anno_file_candidates[0]
 
+        # 加载COCO数据
         with open(annotation_path, 'r') as f:
             coco_data = json.load(f)
 
+        # 预处理：建立类别映射
         categories = sorted(coco_data['categories'], key=lambda x: x['id'])
         self.classes = ('__background__',) + tuple(cat['name'] for cat in categories)
         self.class_to_id_lut = {cls: idx for idx, cls in enumerate(self.classes)}
         self.idx_to_class_lut = {idx: cls for idx, cls in enumerate(self.classes)}
         self.class_counts = [0] * len(self.classes)
+        
+        # 建立类别ID到名称的映射
+        category_id_to_name = {cat['id']: cat['name'] for cat in categories}
+        # 建立类别ID到索引的直接映射（跳过背景类）
+        category_id_to_idx = {cat_id: self.class_to_id_lut[name] 
+                            for cat_id, name in category_id_to_name.items()}
 
-  
+        # 预处理：建立图像索引
+        image_id_to_info = {img['id']: img for img in coco_data['images']}
+        
+        # 预处理：建立图像到标注的映射
+        image_id_to_anns = {}
+        for ann in coco_data['annotations']:
+            img_id = ann['image_id']
+            if img_id not in image_id_to_anns:
+                image_id_to_anns[img_id] = []
+            image_id_to_anns[img_id].append(ann)
+
+        # 初始化图像ID和路径
         self.image_ids = []
         self.image_paths = []
         for img_info in coco_data['images']:
             self.image_ids.append(img_info['id'])
             self.image_paths.append(os.path.join(image_dir, img_info['file_name']))
 
+        # 处理标注信息（优化后的循环）
         self.annotations = []
         for img_id in self.image_ids:
-            img_anns = [ann for ann in coco_data['annotations'] if ann['image_id'] == img_id]
-            img_info = next(img for img in coco_data['images'] if img['id'] == img_id)
+            # 直接通过映射获取，避免嵌套循环
+            img_anns = image_id_to_anns.get(img_id, [])
+            img_info = image_id_to_info.get(img_id)
             
+            if not img_info:
+                continue
+                
             boxes = []
             labels = []
+            original_width = img_info['width']
+            original_height = img_info['height']
+            
             for ann in img_anns:
+                # 直接通过映射获取类别索引，避免嵌套查找
                 category_id = ann['category_id']
-                labels.append(self.class_to_id_lut.get(
-                    next(cat['name'] for cat in categories if cat['id'] == category_id), 
-                    self.class_to_id_lut['__background__']
-                ))
+                cls_idx = category_id_to_idx.get(category_id, 0)  # 0对应背景类
+                labels.append(cls_idx)
                 
+                # 处理边界框坐标
                 xmin, ymin, w, h = ann['bbox']
                 xmax = xmin + w
                 ymax = ymin + h
-                original_width = img_info['width']
-                original_height = img_info['height']
+                
+                # 归一化坐标
                 x_center = (xmin + xmax) / 2 / original_width
                 y_center = (ymin + ymax) / 2 / original_height
                 w_norm = w / original_width
                 h_norm = h / original_height
+                
                 boxes.append([x_center, y_center, w_norm, h_norm])
 
-            boxes_tensor = torch.tensor(boxes, dtype=torch.float32)
-            labels_tensor = torch.tensor(labels, dtype=torch.int64)
-            self.annotations.append({'boxes': boxes_tensor, 'labels': labels_tensor})
+            # 转换为张量
+            if boxes:
+                boxes_tensor = torch.tensor(boxes, dtype=torch.float32, device=self.device)
+                labels_tensor = torch.tensor(labels, dtype=torch.int64, device=self.device)
+            else:
+                # 处理没有标注的情况
+                boxes_tensor = torch.empty((0, 4), dtype=torch.float32, device=self.device)
+                labels_tensor = torch.empty((0,), dtype=torch.int64, device=self.device)
+                
+            self.annotations.append({
+                'boxes': boxes_tensor, 
+                'labels': labels_tensor
+            })
             
+            # 更新类别计数
             for cls_id in labels:
-                self.class_counts[cls_id] += 1
+                if cls_id < len(self.class_counts):
+                    self.class_counts[cls_id] += 1

@@ -16,7 +16,7 @@ if __name__ == "__main__":
     train_dataset = COCODataset(root_dir=dataset_path, split='train')
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, collate_fn=COCODataset.collate_fn)
 
-    model = DETR(num_classes=20).to(device)
+    model = DETR(num_classes=80).to(device)
     param_groups = [
         {
             'params': [p for n, p in model.named_parameters() 
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     class_counts = train_dataset.get_class_counts()
     class_weight = 1 / (torch.tensor(class_counts, dtype=torch.float) + 1)
     eos_coef = 1 / (sum(class_counts) * 20)
-    criterion = SetCriterion(num_classes=20, matcher=matcher, class_weight=class_weight, eos_coef=eos_coef)
+    criterion = SetCriterion(num_classes=80, matcher=matcher, class_weight=class_weight, eos_coef=eos_coef)
     
     train_loss, _ = train_loop(model, train_loader, optimizer, criterion, 10, 4)
     torch.save(model.state_dict(), 'detr.pth')
