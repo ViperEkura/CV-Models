@@ -114,11 +114,22 @@ class DETR(nn.Module):
 class PostProcess(nn.Module):
     
     @staticmethod
-    def process(model:Callable[..., Tuple[Tensor, Tensor]], image:Tensor, threshold: float = 0.5) -> Tensor:
-        pred_class, pred_bbox = model(image)
+    def process(
+        model:Callable[..., Tuple[Tensor, Tensor]] | nn.Module,  
+        image:Tensor, 
+        background_index: int = 0,
+        threshold: float = 0.5,
+        device: str = "cuda",
+    ) -> Tensor:
+        model.to(device)
+        image = image.to(device)
+        
+        with torch.no_grad():
+            pred_class, pred_bbox = model(image)
+            
         scores, labels = pred_class.max(dim=-1)
         keep = scores > threshold
-        valid_detections = (labels > 0) & keep
+        valid_detections = (labels != background_index) & keep
         
         selected_scores = scores[valid_detections]
         selected_labels = labels[valid_detections]
