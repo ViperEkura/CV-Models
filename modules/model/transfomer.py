@@ -67,7 +67,7 @@ class TransformerDecoderLayer(nn.Module):
         self.ffn = FeedForward(n_dim, bias=bias)
         self.norm3 = nn.LayerNorm(n_dim)
     def forward(self, tgt, memory):
-        # fix pre/ post nrom bug
+        # fix pre/ post norm bug
         # self attntion
         normed_tgt = self.norm1(tgt)
         tgt2 = self.self_attn(normed_tgt, normed_tgt, normed_tgt)

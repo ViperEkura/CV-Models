@@ -31,16 +31,16 @@ if __name__ == "__main__":
             'weight_decay': 1e-4
         }
     ]
-
+    
+    eos_coef = 0.1
     optimizer = optim.AdamW(param_groups)
     matcher = HungarianMatcher(1, 5, 2)
     class_counts = train_dataset.get_class_counts()
     class_weight = 1 / (torch.tensor(class_counts, dtype=torch.float) + 1)
-    eos_coef = 1 / (sum(class_counts) * 20)
     criterion = SetCriterion(num_classes=80, matcher=matcher, class_weight=class_weight, eos_coef=eos_coef)
     
-    train_loss, _ = train_loop(model, train_loader, optimizer, criterion, 10, 4)
+    train_loss, _ = train_loop(model, train_loader, optimizer, criterion, 200, 4)
     torch.save(model.state_dict(), 'detr.pth')
-    plot_loss(train_loss)
+    # plot_loss(train_loss, save_path='loss.png', show=False)
     
     
